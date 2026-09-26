@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite database
+*.db
+*.sqlite3
+
+# Large media & export archives
+*.mp4
+*.zip
+*.tar.gz
+
+# Generated / Output directories
+output_angles/
+generated_scenes/
+processed_images/
+exports/
+data/temp_check/
+scratch/
+
+# External sub-repositories / clones
+zero123plus_repo/
+
+# Local environment & IDE
+.vscode/
+.idea/
+*.log

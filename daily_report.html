@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engineering Daily Report - September 5, 2026</title>
+  <!-- html2pdf.js CDN for direct PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-light: #3b82f6;
+      --accent: #0284c7;
+      --success: #059669;
+      --bg-slate: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --border-color: #e2e8f0;
+      --code-bg: #f1f5f9;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-slate);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 30px 20px;
+    }
+
+    .report-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 40px 48px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+      border: 1px solid var(--border-color);
+    }
+
+    /* Action Toolbar (Sticky & Screen Only) */
+    .action-toolbar {
+      position: sticky;
+      top: 16px;
+      z-index: 1000;
+      max-width: 900px;
+      margin: 0 auto 24px auto;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .toolbar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px;
+      font-size: 13.5px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background-color: #1e40af;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background-color: #f1f5f9;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: #e2e8f0;
+    }
+
+    /* Header Section */
+    .header-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--primary-light);
+      background: #eff6ff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      border: 1px solid #dbeafe;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+
+    .header-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      font-size: 13.5px;
+      color: var(--text-muted);
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border-color);
+      margin-bottom: 28px;
+    }
+
+    .header-meta span strong {
+      color: var(--text-main);
+    }
+
+    /* Section Styling */
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 28px 0 14px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    h2 .num {
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 700;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    p {
+      margin-bottom: 12px;
+      font-size: 14.5px;
+      color: #334155;
+    }
+
+    /* Metric Cards Grid */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 20px 0;
+    }
+
+    .metric-card {
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--primary-light);
+    }
+
+    .metric-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin: 4px 0 2px 0;
+    }
+
+    .metric-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Feature Cards */
+    .module-box {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .module-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .module-title {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .module-file {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      background: var(--code-bg);
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    ul {
+      margin: 8px 0 8px 20px;
+      color: #334155;
+    }
+
+    li {
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    li strong {
+      color: #0f172a;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #0369a1;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 13.5px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+      text-align: left;
+    }
+
+    th {
+      background-color: #0f172a;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+
+    .status-complete {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .status-active {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    /* Highlights Callout */
+    .callout {
+      background: #eff6ff;
+      border-left: 4px solid var(--primary-light);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 18px 0;
+      font-size: 14px;
+      color: #1e3a8a;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .footer-note {
+      margin-top: 36px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* PRINT SPECIFIC STYLES FOR PDF */
+    @page {
+      size: A4;
+      margin: 14mm 15mm 16mm 15mm;
+    }
+
+    @media print {
+      body {
+        background-color: #ffffff;
+        padding: 0;
+      }
+
+      .action-toolbar {
+        display: none !important;
+      }
+
+      .report-container {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        max-width: 100%;
+      }
+
+      .btn {
+        display: none !important;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      h2 {
+        margin-top: 20px;
+        page-break-after: avoid;
+      }
+
+      .module-box, table, .metric-grid, .callout {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      th {
+        background-color: #1e3a8a !important;
+        color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .status-badge, .header-badge, .metric-card {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Action Toolbar (Hidden in Generated PDF / Print) -->
+  <div class="action-toolbar">
+    <div class="toolbar-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+        <polyline points="10 9 9 9 8 9"></polyline>
+      </svg>
+      <span>Daily Work Summary Document</span>
+    </div>
+    <div class="toolbar-actions">
+      <!-- 1-Click Direct Download via html2pdf -->
+      <button class="btn btn-primary" id="downloadPdfBtn" onclick="generateDirectPDF()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download as PDF
+      </button>
+      <!-- Fallback Browser Print Dialog -->
+      <button class="btn btn-secondary" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 6 2 18 2 18 9"></polyline>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+          <rect x="6" y="14" width="12" height="8"></rect>
+        </svg>
+        Print / Save Dialog
+      </button>
+    </div>
+  </div>
+
+  <!-- Printable Report Container -->
+  <div class="report-container" id="reportContent">
+
+    <!-- Header -->
+    <div class="header-badge">Daily Engineering Activity Report</div>
+    <h1>AI Product Image & 3D Multi-View Generation Studio</h1>
+    <div class="header-meta">
+      <span><strong>Date:</strong> September 5, 2026</span>
+      <span><strong>Status:</strong> All Core Milestones Delivered</span>
+      <span><strong>Environment:</strong> Windows 11 / Python 3.13 / PyTorch</span>
+      <span><strong>Location:</strong> <code>E:\VS_Code\Projects\Image_Generator</code></span>
+    </div>
+
+    <!-- Metrics Summary -->
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-title">Modules Built</div>
+        <div class="metric-value">5 Systems</div>
+        <div class="metric-desc">Pipeline, Watcher, Normalizer, API & UI</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Cutout Accuracy</div>
+        <div class="metric-value">BiRefNet (fp32)</div>
+        <div class="metric-desc">High-precision Swin backbone matting</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Synthesized Views</div>
+        <div class="metric-value">6 Angles</div>
+        <div class="metric-desc">Zero123++ diffusion camera generation</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Execution Mode</div>
+        <div class="metric-value">FastAPI + Watcher</div>
+        <div class="metric-desc">Zero-touch folder watch & REST server</div>
+      </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2><span class="num">1</span> Executive Summary</h2>
+    <p>
+      Today's engineering work transformed standalone AI research scripts into a fully automated, production-grade 
+      <strong>E-Commerce 3D Multi-View Synthesis & Background Removal Platform</strong>. The architecture seamlessly ingests raw product 
+      photography in diverse formats, strips backgrounds cleanly with BiRefNet, synthesizes 6 standard 3D camera angles with Zero123++, 
+      automatically normalizes catalog sizes to uniform 1024x1024 canvases, and exposes both an automated continuous filesystem watcher 
+      and an interactive FastAPI web studio.
+    </p>
+
+    <!-- Key Modules Completed Today -->
+    <h2><span class="num">2</span> Key Features & Systems Implemented Today</h2>
+
+    <!-- Module 1 -->
+    <div class="module-box">
+      <div class="module-header">
+        <div class="module-title">1. Unified In-Memory Pipeline Engine</div>
+        <span class="module-file">run_pipeline.py</span>
+      </div>
+      <ul>
+        <li><strong>End-to-End Orchestration:</strong> Chains primary background matting, diffusion canvas conditioning, 6-view novel camera synthesis, and secondary studio matting in a single execution flow.</li>
+        <li><strong>Eliminated Redundant Re-loads:</strong> Reuses the in-memory BiRefNet model instance for both primary input matting and secondary matting across all 6 generated studio views, cutting overhead.</li>
+        <li><strong>Alpha Halation Cleanup:</strong> Implemented boundary de-fringing and contour smoothing to eliminate white edge halos produced by diffusion synthesis.</li>
+      </ul>
+    </div>
+
+    <!-- Module 2 -->
+    <div class="module-box">
+      <div class="module-header">
+        <div class="module-title">2. Autonomous Catalog Normalizer & Centering</div>
+        <span class="module-file">standardize_views.py</span>
+      </div>
+      <ul>
+        <li><strong>Alpha Bounding-Box Detection:</strong> Dynamically extracts non-zero alpha channel coordinates to isolate exact subject contours without manual cropping.</li>
+        <li><strong>Uniform Canvas Standard:</strong> Resizes subject proportionally onto a square <code>1024x1024</code> transparent canvas maintaining exactly 80% target fill and 10% protective margins.</li>
+        <li><strong>High-Fidelity Resampling:</strong> Employs Lanczos interpolation to preserve sharp product edges, textures, and labels for marketplace compliance.</li>
+      </ul>
+    </div>
+
+    <!-- Module 3 -->
+    <div class="module-box">
+      <div class="module-header">
+        <div class="module-title">3. Dynamic Batch Processor & Continuous Folder Watcher</div>
+        <span class="module-file">batch_remove_bg.py & run_watcher.bat</span>
+      </div>
+      <ul>
+        <li><strong>Multi-Directory Auto-Discovery:</strong> Scans <code>inputs/</code>, <code>input/</code>, and project root simultaneously.</li>
+        <li><strong>Duplicate Prevention & State Auditing:</strong> Checks for existing <code>_cutout.png</code> outputs to skip already processed images, eliminating redundant compute cycles.</li>
+        <li><strong>Zero-Touch Continuous Watch Mode (<code>--watch</code>):</strong> Keeps BiRefNet warm in memory, polling directories for newly dropped seller items and producing cutouts in real time.</li>
+        <li><strong>One-Click Windows Launchers:</strong> Created <code>run_watcher.bat</code> and <code>run_batch.bat</code> for instant terminal-free operations.</li>
+      </ul>
+    </div>
+
+    <!-- Module 4 -->
+    <div class="module-box">
+      <div class="module-header">
+        <div class="module-title">4. Production FastAPI Backend Server</div>
+        <span class="module-file">server.py & start_app.bat</span>
+      </div>
+      <ul>
+        <li><strong>Asynchronous REST Endpoints:</strong> Created <code>POST /api/upload</code> for multi-file seller uploads, <code>GET /api/queue</code> for real-time progress auditing, and <code>POST /api/process-queue</code> for background worker task processing.</li>
+        <li><strong>Preview & Asset Delivery:</strong> Dedicated file streaming endpoints (<code>/api/image/{filename}</code>) and preview composition endpoints for testing cutouts on solid or gradient backgrounds.</li>
+        <li><strong>Windows Daemon Script:</strong> Created <code>start_app.bat</code> configuring Uvicorn on <code>http://127.0.0.1:8000</code>.</li>
+      </ul>
+    </div>
+
+    <!-- Module 5 -->
+    <div class="module-box">
+      <div class="module-header">
+        <div class="module-title">5. E-Commerce Seller Studio Web UI</div>
+        <span class="module-file">static/index.html</span>
+      </div>
+      <ul>
+        <li><strong>Modern Responsive Dashboard:</strong> Drag-and-drop batch upload dropzone with immediate file validation and status progress indicators.</li>
+        <li><strong>Interactive Studio Previewer:</strong> Allows sellers to test their transparent cutouts against pure white, dark mode, vibrant e-commerce gradients, or custom colors.</li>
+        <li><strong>Queue Inspector:</strong> Visual cards separating pending uploads from completed high-resolution assets with instant download buttons.</li>
+      </ul>
+    </div>
+
+    <!-- Technical Obstacles Solved -->
+    <h2><span class="num">3</span> Technical Challenges Solved & Optimizations</h2>
+    <div class="callout">
+      <strong>Key Architecture Fixes Today:</strong>
+      <br>
+      • <strong>Swin Backbone FP32 Precision:</strong> Resolved convolutional kernel mismatch errors in BiRefNet on CPU/DirectX by enforcing strictly synchronized <code>torch.float32</code> tensor pathways.
+      <br>
+      • <strong>EXIF Orientation Normalization:</strong> Integrated <code>ImageOps.exif_transpose</code> across all ingestion functions, preventing mobile camera uploads from rotating sideways.
+      <br>
+      • <strong>Decoupled Windows Module Resolution:</strong> Bypassed broken HuggingFace remote module loading on Windows by locally housing <code>zero123plus_repo</code> with dynamic <code>sys.path</code> discovery.
+      <br>
+      • <strong>Universal Format Compatibility:</strong> Enabled native ingestion of Apple iOS <code>.heic</code>/<code>.heif</code> files alongside standard PNG, JPG, WebP, and TIFF via <code>pillow-heif</code> registration.
+    </div>
+
+    <!-- Deliverables Summary Table -->
+    <h2><span class="num">4</span> Deliverables & Status Table</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Deliverable File</th>
+          <th>Role / Component</th>
+          <th>Tech Stack</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>run_pipeline.py</code></td>
+          <td>Unified 3D & Matting Pipeline</td>
+          <td>BiRefNet + Zero123++ (Diffusers)</td>
+          <td><span class="status-badge status-complete">Completed</span></td>
+        </tr>
+        <tr>
+          <td><code>standardize_views.py</code></td>
+          <td>Alpha BBox & Canvas Normalizer</td>
+          <td>Pillow (Lanczos / RGBA)</td>
+          <td><span class="status-badge status-complete">Completed</span></td>
+        </tr>
+        <tr>
+          <td><code>batch_remove_bg.py</code></td>
+          <td>Stateful Batch & Watcher Daemon</td>
+          <td>PyTorch + File Watcher</td>
+          <td><span class="status-badge status-complete">Completed</span></td>
+        </tr>
+        <tr>
+          <td><code>server.py</code></td>
+          <td>FastAPI Studio Backend</td>
+          <td>FastAPI, Uvicorn, Async Tasks</td>
+          <td><span class="status-badge status-complete">Completed</span></td>
+        </tr>
+        <tr>
+          <td><code>static/index.html</code></td>
+          <td>Web Studio & Upload Dashboard</td>
+          <td>HTML5, CSS3, Modern ES6 JS</td>
+          <td><span class="status-badge status-complete">Completed</span></td>
+        </tr>
+        <tr>
+          <td><code>run_watcher.bat</code></td>
+          <td>1-Click Background Watcher</td>
+          <td>Windows Shell Script</td>
+          <td><span class="status-badge status-complete">Completed</span></td>
+        </tr>
+        <tr>
+          <td><code>start_app.bat</code></td>
+          <td>1-Click Web App Launcher</td>
+          <td>Windows Shell Script</td>
+          <td><span class="status-badge status-complete">Completed</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Next Roadmap Steps -->
+    <h2><span class="num">5</span> Recommended Next Steps</h2>
+    <ul>
+      <li><strong>GPU CUDA Acceleration:</strong> Reinstall PyTorch with CUDA 12.1+ compute support to accelerate Zero123++ inference from CPU speeds down to ~15 seconds per batch.</li>
+      <li><strong>Zip Archive Downloads:</strong> Add a bulk <code>GET /api/download-all</code> zip endpoint on the FastAPI server for sellers to export all 6 angles and cutouts in a single click.</li>
+      <li><strong>3D Mesh Reconstruction:</strong> Optional integration of InstantMesh / TripoSR to generate <code>.obj</code> and <code>.glb</code> 3D interactive viewer files from the 6 synthesized angles.</li>
+    </ul>
+
+    <!-- Footer -->
+    <div class="footer-note">
+      <span>Generated for: AI Studio Project Workspace</span>
+      <span>Report Date: September 5, 2026</span>
+    </div>
+
+  </div>
+
+  <!-- JavaScript for Direct PDF Download & Printing -->
+  <script>
+    function generateDirectPDF() {
+      const btn = document.getElementById('downloadPdfBtn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'Generating PDF...';
+      btn.style.opacity = '0.7';
+
+      const element = document.getElementById('reportContent');
+      
+      const opt = {
+        margin:       [12, 14, 12, 14], // [top, left, bottom, right] in mm
+        filename:     'Work_Summary_Report_2026-09-05.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      // Generate and download PDF
+      html2pdf().set(opt).from(element).save().then(() => {
+        btn.innerHTML = originalText;
+        btn.style.opacity = '1';
+      }).catch(err => {
+        console.error('Direct PDF error, falling back to window.print():', err);
+        btn.innerHTML = originalText;
+        btn.style.opacity = '1';
+        window.print();
+      });
+    }
+  </script>
+</body>
+</html>
