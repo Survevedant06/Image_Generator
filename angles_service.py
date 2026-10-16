@@ -121,12 +121,14 @@ def get_pipeline(device: Optional[str] = None):
 
     if _cached_pipeline is None or _cached_device != device:
         try:
+            import importlib
             try:
-                from zero123plus.pipeline import Zero123PlusPipeline
+                zero123_mod = importlib.import_module("zero123plus.pipeline")
             except ImportError:
-                from pipeline import Zero123PlusPipeline
+                zero123_mod = importlib.import_module("pipeline")
+            Zero123PlusPipeline = getattr(zero123_mod, "Zero123PlusPipeline")
             from diffusers import EulerAncestralDiscreteScheduler
-        except ImportError as e:
+        except (ImportError, AttributeError) as e:
             raise RuntimeError(f"Zero123PlusPipeline dependencies missing: {e}")
 
         print(f"[AI Studio] Loading Zero123++ v1.2 diffusion model on {device}...")

@@ -1,117 +1,139 @@
 ================================================================================
-                    SUMMARY OF CHANGES MADE TODAY (OCTOBER 16-17, 2026)
+                    WEBSITE FEATURES ADDED TODAY (OCTOBER 16-17, 2026)
                       PROJECT: E-COMMERCE AI IMAGE GENERATOR
 ================================================================================
 
-1. ARTIFICIAL SHADOW GENERATION
+1. ARTIFICIAL SHADOW GENERATION ENGINE
 --------------------------------------------------------------------------------
-- Created backend module: `shadow_service.py`
-  * Physics-grounded shadow engine supporting:
-    - Contact Shadow: Synthesizes tight ambient occlusion directly underneath
-      the product contact surface.
-    - Drop / Cast Shadow: Configurable directional projected shadow with ground
-      perspective foreshortening and floating elevation modes.
-  * Added customizable parameters:
+- Backend Module: `shadow_service.py`
+  * Contact Shadow: Synthesizes tight ambient occlusion directly underneath
+    the product contact surface for ground anchoring.
+  * Drop / Cast Shadow: Configurable directional projected shadow with ground
+    perspective foreshortening and floating elevation modes.
+  * Customizable Controls:
     - 360-degree light direction angle (-180 deg to +180 deg)
     - Shadow distance offset (0px to 70px)
     - Gaussian blur softness (2px to 40px)
     - Shadow opacity / density (0.0 to 1.0)
 - API Endpoint:
-  * `POST /api/shadow/apply` - applies contact and drop shadows to isolated
-    cutout images.
+  * `POST /api/shadow/apply` - applies contact and directional drop shadows to
+    isolated cutout images.
 - Frontend UI:
   * Integrated dedicated shadow controls in Tab 3 (Stylize & Scene) of the
     Studio Modal in `static/index.html` with real-time direction readouts.
 
 
-2. AI UPSCALING PASS (2X / 4X TEXT & LABEL PRESERVING)
+2. AI SUPER-RESOLUTION UPSCALE (2X / 4X TEXT & LABEL PRESERVING)
 --------------------------------------------------------------------------------
-- Created backend module: `upscale_service.py`
+- Backend Module: `upscale_service.py`
   * High-fidelity super-resolution pipeline with edge & contrast preservation.
   * Specifically tuned to preserve legible text on product labels, packaging,
     bottles, and typography.
-  * Supports 2x and 4x upscaling scale factors with side-by-side comparison capability.
-- API Endpoints:
-  * `POST /api/upscale/run` - executes super-resolution enhancement on selected
-    images.
-  * `POST /api/upscale/compare` - returns before/after comparison previews.
+  * Supports 2x and 4x upscaling scale factors with side-by-side preview capability.
+- API Endpoint:
+  * `POST /api/upscale` - executes super-resolution enhancement on selected images.
 - Frontend UI:
-  * Added one-click "Upscale 2x / 4x" actions to generated image cards and the
-    Studio inspector.
+  * One-click "Upscale 2x / 4x" actions on generated image cards and within
+    the Studio inspector.
 
 
-3. ATMOSPHERIC COLOR TONE MATCHING
+3. ATMOSPHERIC COLOR TONE HARMONIZATION
 --------------------------------------------------------------------------------
-- Created backend module: `color_match_service.py`
+- Backend Module: `color_match_service.py`
   * Automated white balance and tone harmonization using LAB color space
     transfer and Reinhard statistical color distribution mapping.
-  * Matches product foreground tones to the generated background scene's
-    ambient lighting and color temperature.
-  * Configurable blend intensity (0% to 100%) to preserve original product brand
-    colors while eliminating artificial "cut-and-paste" look.
+  * Harmonizes product foreground lighting to match the generated background
+    scene's ambient illumination and color temperature.
+  * Configurable blend intensity (0% to 100%) to preserve original brand colors
+    while eliminating artificial "cut-and-paste" appearance.
 - API Endpoint:
-  * `POST /api/color-match/apply`
+  * `POST /api/color-match` - applies color temperature and ambient matching.
 - Frontend UI:
-  * Added "Atmospheric Color Match" toggle switch and intensity slider in the
-    Studio inspector.
+  * "Atmospheric Color Match" toggle switch and intensity slider in the Studio
+    inspector.
 
 
-4. MOBILE RESPONSIVE WEB APP & PROGRESSIVE WEB APP (PWA) SUPPORT
+4. AI PROMPT ENHANCER
+--------------------------------------------------------------------------------
+- Backend Implementation: `server.py`
+  * Analyzes concise product descriptions and transforms them into rich,
+    commercial-grade studio prompts.
+  * Injects optimal commercial photography descriptors, studio lighting rigs
+    (softbox, rim light, ambient diffusion), surface textures, and camera angles.
+- API Endpoint:
+  * `POST /api/ai/enhance-prompt` - returns expanded, studio-grade commercial prompt.
+- Frontend UI:
+  * Interactive "Enhance Prompt" button in the generation panel for instant prompt
+    optimization.
+
+
+5. TEXT-TO-PRODUCT AI SCENE GENERATION
+--------------------------------------------------------------------------------
+- Backend Implementation: `server.py` & `ai_generator.py`
+  * Enables sellers to generate commercial product imagery directly from text
+    prompts without physical product photography.
+  * Automatically routes generated images through BiRefNet for clean cutout
+    extraction, auto-categorization, and database indexing.
+- API Endpoint:
+  * `POST /api/ai/generate-product` - generates product visual, runs background
+    removal, and saves to catalog.
+- Frontend UI:
+  * Text-to-product creation interface with style selectors and live rendering queue.
+
+
+6. CATALOG DUPLICATE DETECTION & SMART MERGING
+--------------------------------------------------------------------------------
+- Backend Implementation: `server.py` & `db.py`
+  * Intelligent detection and consolidation of duplicate product entries in the
+    catalog.
+  * Merges cutouts, multi-angle camera views, 3D scenes, tags, and descriptions
+    into the designated primary record before safely cleaning up redundancies.
+- API Endpoint:
+  * `POST /api/duplicates/merge` - merges redundant records into the primary product.
+- Frontend UI:
+  * Duplicate consolidation actions in the product inventory view.
+
+
+7. MOBILE RESPONSIVE UI & PROGRESSIVE WEB APP (PWA) SUPPORT
 --------------------------------------------------------------------------------
 - PWA Architecture:
-  * Added `static/manifest.json` configured for standalone mobile web application.
-  * Added `static/sw.js` (Service Worker) for asset caching and offline resilience.
-  * Added custom touch app icons: `static/icons/icon-192.png` and `static/icons/icon-512.png`.
+  * `static/manifest.json`: Configured for standalone mobile app installation.
+  * `static/sw.js`: Service Worker providing asset caching and offline resilience.
+  * Custom touch app icons: `static/icons/icon-192.png` and `static/icons/icon-512.png`.
 - Mobile Camera Upload:
-  * Added native camera capture support (`capture="environment"`) to the upload
-    interface, allowing sellers to photograph products directly on smartphones.
+  * Direct smartphone camera integration (`capture="environment"`) allowing sellers
+    to photograph and upload products right from their mobile browser.
 - Mobile Responsive Layout:
-  * Enhanced `static/index.html` CSS for handheld viewport sizes, responsive
-    grids, touch-friendly buttons, and bottom-sheet drawers.
+  * Enhanced `static/index.html` with responsive viewport grids, touch-friendly
+    modals, and bottom-sheet drawers.
 
 
-5. AUTHENTICATION & MULTI-USER DATABASE ARCHITECTURE
+8. USER AUTHENTICATION & MULTI-TENANT ARCHITECTURE
 --------------------------------------------------------------------------------
 - Authentication System:
-  * Implemented secure token & session management in `auth.py`.
-  * Added CLI utility `create_users.py` for administrator/seller provisioning.
-- Database Schema Overhaul:
-  * Expanded `db.py` to support user accounts, role-based access, image history,
-    favorites, and per-user generation audit logs.
+  * Secure token & session management implemented in `auth.py`.
+  * User registration, login, and active session verification.
+  * Demo accounts and quick switcher for effortless testing and multi-role demos.
+  * CLI utility `create_users.py` for administrator and seller provisioning.
+- Multi-Tenant Database Architecture:
+  * Expanded `db.py` to support user accounts, role-based access control,
+    per-user image catalogs, favorite lists, and generation audit history.
+- API Endpoints:
+  * `POST /api/auth/register` - creates new user accounts.
+  * `POST /api/auth/login` - authenticates users and issues access tokens.
+  * `GET /api/auth/me` - retrieves current authenticated profile.
+  * `GET /api/auth/demo-users` & `GET /api/auth/suggested-users` - supports demo
+    quick-login.
+- Frontend UI:
+  * Authentication modal, user profile dropdown, and role-aware navigation.
 
 
-6. STUDIO ASSETS & PRESETS LIBRARY
+9. STUDIO PRESETS & TEMPLATES ASSET LIBRARY
 --------------------------------------------------------------------------------
-- Added `ai_studio_templates/` directory containing 56+ high-resolution
-  e-commerce product reference templates covering footwear, consumer electronics,
-  luxury watches, jewelry, cosmetics, tools, and apparel.
-
-
-7. GIT CONFLICT RESOLUTION & RECOVERY
---------------------------------------------------------------------------------
-- Diagnosed and resolved merge conflicts caused by accidentally pulling an older
-  commit (`cc8b122 Add files via upload` from 1 month ago).
-- Rolled back cleanly using `git reset --hard 9d113dd`, preserving all new
-  features and source code without syntax errors or conflict markers.
-- Removed duplicate nested directory structure (`Image_Generator/Image_Generator`).
-
-
-8. SECURITY & GIT SECRET SCANNING REMEDIATION
---------------------------------------------------------------------------------
-- Fixed GitHub Secret Scanning rejection caused by tracked `.env` file containing
-  Google Cloud / Gemini API credentials.
-- Added `.env` to `.gitignore`.
-- Removed `.env` from Git staging cache (`git rm --cached .env`) without deleting
-  the local file.
-- Amended commit history cleanly (`b96aff5`) with zero exposed secrets.
-- Successfully pushed the clean main branch to GitHub (`origin/main`).
-
-
-9. PARENT REPOSITORY LARGE FILE PUSH RESOLUTION (PROJECTS ROOT)
---------------------------------------------------------------------------------
-- Resolved GitHub pre-receive hook error (`GH001: Large files detected > 100MB`)
-  for files such as `SIH.zip`, `SentryStream.zip`, and screen recording `.mp4` files.
-- Soft-reset the commit, untracked large archives from the Git index while keeping
-  all files safely intact on local disk.
-- Updated `.gitignore` to prevent future commits of zip archives and screen recordings.
+- Curated E-Commerce Asset Pack:
+  * 56+ high-resolution reference product templates in `ai_studio_templates/`
+    spanning footwear, consumer electronics, luxury watches, jewelry, cosmetics,
+    apparel, tools, and home goods.
+  * Allows instantaneous testing and 1-click previewing of studio scene styles,
+    lighting setups, and angle variations.
 ================================================================================
