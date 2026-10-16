@@ -37,14 +37,24 @@ import image_search
 # ---------------------------------------------------------------------------
 TAXONOMY_MAP: List[Dict[str, Any]] = [
     {
+        "category": "Footwear",
+        "icon": "footprints",
+        "description": "Footwear, sneakers, athletic shoes, loafers, boots, heels, clogs, and sandals",
+        "keywords": [
+            "footwear", "shoe", "shoes", "loafer", "loafers", "sneaker", "sneakers", 
+            "boot", "boots", "sandal", "sandals", "slide", "slides", "clog", "clogs", 
+            "slipper", "slippers", "heel", "heels", "cleat", "cleats", "air jordan", 
+            "running shoe", "oxford", "oxfords", "moccasin", "moccasins", "dress shoe", 
+            "dress shoes", "flip flop", "flip flops", "trainer", "trainers", "espadrille", 
+            "espadrilles", "derby", "brogue", "monk strap", "pump", "pumps", "stiletto", 
+            "stilettos", "ankle boot", "chelsea boot", "combat boot", "footwear shoes"
+        ]
+    },
+    {
         "category": "Clothing, Shoes & Jewelry",
         "icon": "shirt",
-        "description": "Apparel, footwear, sneakers, designer bags, backpacks, luxury watches, and jewelry",
+        "description": "Apparel, designer bags, backpacks, luxury watches, and jewelry",
         "keywords": [
-            # Footwear
-            "sneaker", "sneakers", "shoe", "shoes", "boot", "boots", "sandal", "sandals", 
-            "loafer", "loafers", "heel", "heels", "cleat", "cleats", "air jordan", "running shoe", 
-            "footwear", "slide", "slides", "clog", "clogs", "slipper", "slippers", "oxford",
             # Bags & Luggage
             "backpack", "backpacks", "bag", "bags", "handbag", "handbags", "tote", "totes", 
             "purse", "purses", "luggage", "suitcase", "duffel", "satchel", "briefcase", 
@@ -55,7 +65,7 @@ TAXONOMY_MAP: List[Dict[str, Any]] = [
             "hat", "cap", "beanie", "scarf", "glove", "gloves", "belt",
             # Watches & Jewelry
             "watch", "watches", "wristwatch", "wristwatches", "timepiece", "chronograph", 
-            "rolex", "omega", "seiko", "casio", "patek", "smartwatch", "submariner",
+            "rolex", "omega", "seiko", "casio", "patek", "submariner",
             "ring", "necklace", "bracelet", "earring", "earrings", "jewelry", "pendant", 
             "jewel", "gemstone", "diamond", "cufflink", "brooch",
             # Eyewear
@@ -74,7 +84,8 @@ TAXONOMY_MAP: List[Dict[str, Any]] = [
             "monitor", "display", "pc", "computer", "macbook", "usb", "hard drive", "ssd", 
             "dock", "mousepad", "peripheral",
             "phone", "smartphone", "iphone", "android", "tablet", "ipad", "camera", "dslr", 
-            "drone", "smart device", "charger", "power bank", "gadget", "cables"
+            "drone", "smart device", "charger", "power bank", "gadget", "cables",
+            "smartwatch", "smartwatches", "apple watch", "wearable"
         ]
     },
     {
@@ -92,7 +103,7 @@ TAXONOMY_MAP: List[Dict[str, Any]] = [
             "mug", "mugs", "coffee mug", "cup", "cups", "glass", "glasses", "plate", "plates", 
             "bowl", "bowls", "tableware", "dining", "cutlery", "fork", "spoon", "knife",
             "water bottle", "waterbottle", "drink bottle", "flask", "thermos", "tumbler", 
-            "tumblers", "canteen", "hydro flask", "stanley",
+            "tumblers", "canteen", "hydro flask", "stanley tumbler", "stanley cup", "stanley mug",
             # Lighting
             "lamp", "lamps", "light", "lights", "lighting", "lantern", "chandelier", "sconce", 
             "bulb", "led", "desk lamp", "floor lamp", "nightlight",
@@ -176,9 +187,12 @@ TAXONOMY_MAP: List[Dict[str, Any]] = [
 
 # Mapping table from ImageNet keywords to Amazon-standard universal categories
 VISION_IMAGENET_TO_CATEGORY = [
-    # Clothing, Shoes & Jewelry
+    # Footwear
     (["loafer", "shoe", "sandal", "boot", "clog", "running shoe", "moccasin", "sock", 
-      "sneaker", "cleat", "buckle", "jersey", "jean", "cardigan", "sweatshirt", "coat", 
+      "sneaker", "cleat", "clogs", "slippers", "espadrille", "footwear"], "Footwear"),
+
+    # Clothing, Shoes & Jewelry
+    (["buckle", "jersey", "jean", "cardigan", "sweatshirt", "coat", 
       "suit", "trench coat", "vest", "kimono", "gown", "stole", "scarf", "bonnet", 
       "cowboy hat", "sombrero", "sunglasses", "sunglass", "spectacles", "watch", 
       "digital watch", "analog watch", "stopwatch", "backpack", "handbag", "purse", 
@@ -188,7 +202,7 @@ VISION_IMAGENET_TO_CATEGORY = [
     (["laptop", "notebook", "mouse", "keyboard", "monitor", "screen", "television", 
       "loudspeaker", "speaker", "microphone", "headphone", "earphone", "cellular telephone", 
       "dial telephone", "ipod", "camera", "reflex camera", "camcorder", "projector", 
-      "remote control", "joystick", "modem", "hard disc"], "Electronics & Accessories"),
+      "remote control", "joystick", "modem", "hard disc", "smartwatch"], "Electronics & Accessories"),
     
     # Home & Kitchen
     (["chair", "armchair", "folding chair", "rocking chair", "desk", "table", "dining table", 
@@ -263,27 +277,37 @@ def is_cryptic_or_raw_title(title: str, filename: Optional[str] = None) -> bool:
     clean = re.sub(r"[\s_\-]+[0-9]{7,}(?:[\s_\-][0-9]+)?", "", title).strip()
     raw = f"{clean} {filename or ''}".lower()
 
-    # If it contains meaningful keywords from our taxonomy, it is definitely NOT cryptic!
+    # 1. Unsplash patterns (e.g. stanley-g-mathu-5_zKOE-kPkw-unsplash or irene-kredenets-KStSiM1UvPw-unsplash)
+    # MUST be checked first before taxonomy keywords because photographer names can contain common words!
+    if "unsplash" in raw:
+        return True
+
+    # 2. Camera raw / phone / generic placeholder patterns
+    if re.search(r"\b(img_\d+|dsc_\d+|screenshot|photo_\d+|image_\d+|pasted_image|final_result)\b", raw):
+        return True
+    
+    # 3. UUID-like pattern: 8-4-4-4-12 hex chars
+    if re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}", raw):
+        return True
+
+    # 4. Hash-like strings or unsplash-like suffixes (e.g. 5_zkoe-kpkw, kstsim1uvpw)
+    parts = re.split(r"[_\-\s]+", raw)
+    if any(len(p) >= 7 and any(c.isdigit() for c in p) and any(c.isalpha() for c in p) for p in parts):
+        return True
+
+    # 5. Very short or pure number/test
+    tokens = clean_text_tokens(clean)
+    if not tokens or all(t.isdigit() for t in tokens):
+        return True
+
+    # 6. If it contains meaningful keywords from our taxonomy, it is descriptive!
     for item in TAXONOMY_MAP:
         for kw in item["keywords"]:
             if re.search(r"\b" + re.escape(kw.lower()) + r"\b", f" {clean.lower()} "):
                 return False
 
-    # Common camera / phone raw patterns
-    if re.search(r"\b(img_\d+|dsc_\d+|screenshot|photo_\d+|image_\d+|pasted_image)\b", raw):
-        return True
-    
-    # UUID-like pattern: 8-4-4-4-12 hex chars
-    if re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}", raw):
-        return True
-        
-    # Unsplash author-hash patterns (e.g. "irene kredenets kstsim1uvpw unsplash")
-    if "unsplash" in raw or (len(clean.split()) >= 3 and any(len(part) > 8 for part in clean.split())):
-        return True
-        
-    # Very short or pure number/test
-    tokens = clean_text_tokens(clean)
-    if not tokens or all(t.isdigit() for t in tokens):
+    # 7. Long random strings without recognizable words
+    if len(clean.split()) >= 3 and any(len(part) > 8 for part in clean.split()):
         return True
         
     return False
@@ -393,6 +417,15 @@ def refine_product_title(
     Produces a clean, commercial title for the product.
     If the name is a cryptic raw code (e.g. IMG_3173, Unsplash hash), generates a professional title.
     """
+    if not raw_image_path and filename:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        for cand in [os.path.join(base_dir, "inputs", filename),
+                     os.path.join(base_dir, filename),
+                     filename]:
+            if os.path.exists(cand):
+                raw_image_path = cand
+                break
+
     # Strip timestamp / counter suffixes (e.g. _1789319907 or 1789223502_1)
     clean_base = re.sub(r"[\s_\-]+[0-9]{7,}(?:[\s_\-][0-9]+)?", "", raw_title)
     clean_base = re.sub(r"[_\-\+]+", " ", clean_base).strip().title()
@@ -432,6 +465,15 @@ def resolve_product_category(
       
     Returns: (category_id, category_name, is_newly_created)
     """
+    if not raw_image_path and filename:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        for cand in [os.path.join(base_dir, "inputs", filename),
+                     os.path.join(base_dir, filename),
+                     filename]:
+            if os.path.exists(cand):
+                raw_image_path = cand
+                break
+
     existing_cats = db.list_categories()
     combined_text = f"{product_name} {tags} {description} {os.path.splitext(filename or '')[0]}"
     

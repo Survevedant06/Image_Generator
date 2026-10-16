@@ -24,7 +24,7 @@ import threading
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional, Tuple
 
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException, Form, Query, Request
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException, Form, Query, Request, Depends, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,9 +44,14 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 import db
+import auth
 import image_search
 import beautify_service
 import category_classifier
+import ai_generator
+import shadow_service
+import upscale_service
+import color_match_service
 
 from batch_remove_bg import (
     load_birefnet_model,
@@ -55,6 +60,7 @@ from batch_remove_bg import (
     is_valid_input_image,
     SUPPORTED_EXTENSIONS
 )
+import generate_scene
 from generate_scene import (
     STUDIO_PRESETS,
     ASPECT_RATIOS,
@@ -85,11 +91,18 @@ os.makedirs(OUTPUT_ANGLES_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
 
 class GenerateSceneRequest(BaseModel):
-    cutout_filename: str
+    cutout_filename: Optional[str] = None
     preset_id: str = "white"
     aspect_ratio: str = "1:1"  # "1:1", "4:5", "9:16", "16:9", or "all"
     custom_prompt: Optional[str] = None
     shadow_intensity: Optional[float] = None
+    contact_shadow: bool = True
+    drop_shadow: bool = True
+    light_angle_deg: Optional[float] = None
+    shadow_distance: Optional[float] = None
+    shadow_blur: Optional[float] = None
+    color_tone_match: bool = False
+    color_match_intensity: float = 0.65
 
 class GenerateAnglesRequest(BaseModel):
     cutout_filename: Optional[str] = None
@@ -130,20 +143,85 @@ class ExportImageRequest(BaseModel):
     target_height: Optional[int] = None
     dpi: int = 300
     background_color: str = "transparent"
+    preset_id: Optional[str] = None
+    custom_prompt: Optional[str] = None
     auto_enhance: bool = True
     brightness: float = 1.0
     contrast: float = 1.0
     saturation: float = 1.0
     sharpness: float = 1.0
+    upscale_factor: Optional[int] = None
+    preserve_text: bool = True
+
+class ShadowApplyRequest(BaseModel):
+    cutout_filename: Optional[str] = None
+    product_id: Optional[int] = None
+    contact_shadow: bool = True
+    drop_shadow: bool = True
+    light_angle_deg: float = -60.0
+    shadow_distance: float = 25.0
+    shadow_blur: float = 16.0
+    contact_intensity: float = 0.85
+    drop_intensity: float = 0.55
+    shadow_color: Optional[Tuple[int, int, int]] = (20, 25, 35)
+    shadow_mode: str = "ground"
+    background_type: str = "transparent"
+
+class UpscaleRequest(BaseModel):
+    source_image: str
+    scale_factor: int = 2
+    preserve_text: bool = True
+    denoise_flats: bool = True
+    product_id: Optional[int] = None
+
+class ColorToneMatchRequest(BaseModel):
+    product_image: str
+    reference_image: Optional[str] = None
+    preset_id: Optional[str] = None
+    blend_intensity: float = 0.70
+    preserve_luminance: bool = True
+    edge_light_bleed: bool = True
+    product_id: Optional[int] = None
 
 class DetectCategoryRequest(BaseModel):
-    name: str
+    name: Optional[str] = None
+    product_name: Optional[str] = None
     filename: Optional[str] = None
     tags: Optional[str] = ""
     description: Optional[str] = ""
 
+
 class CleanupDuplicatesRequest(BaseModel):
     product_ids: Optional[List[int]] = None
+
+class MergeDuplicatesRequest(BaseModel):
+    primary_id: int
+    duplicate_ids: List[int]
+
+class GenerateProductRequest(BaseModel):
+    prompt: str
+    product_name: Optional[str] = None
+    style_preset: Optional[str] = "studio"
+    aspect_ratio: Optional[str] = "1:1"
+    category_id: Optional[int] = None
+
+class EnhancePromptRequest(BaseModel):
+    prompt: str
+    style_preset: Optional[str] = "studio"
+
+# --- Auth Models ---
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+    full_name: Optional[str] = ""
+
+class LoginRequest(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    login: Optional[str] = None
+    password: str
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -242,7 +320,11 @@ def get_model():
         with _model_lock:
             if cached_model is None:
                 cached_device = "cuda" if torch.cuda.is_available() else "cpu"
-                cached_model = load_birefnet_model(cached_device)
+                try:
+                    cached_model = load_birefnet_model(cached_device)
+                except Exception as e:
+                    print(f"[BiRefNet Model Warning] Could not load BiRefNet: {e}")
+                    cached_model = None
     return cached_model, cached_device
 
 
@@ -407,10 +489,11 @@ def sync_project_folders() -> Dict[str, Any]:
             )
 
             # Perceptual cross-format duplicate check
-            dup_match = db.find_duplicate_or_similar_image(dest_path, max_hamming_distance=6)
-            if dup_match:
+            dup_info = image_search.check_duplicate(dest_path)
+            if dup_info.get("exists") and dup_info.get("match"):
+                dup_match = dup_info["match"]
                 _skipped_duplicate_cache[f] = (mtime, size, dup_match["product_id"])
-                print(f"[Folder Watcher] Skipping '{f}' - visual duplicate of Product #{dup_match['product_id']} '{dup_match['product_name']}'.")
+                print(f"[Folder Watcher] Skipping '{f}' - {dup_info.get('message', 'Duplicate found')}")
                 continue
 
             cat_id, cat_name, is_new = category_classifier.resolve_product_category(
@@ -654,6 +737,93 @@ def background_worker(target_files: Optional[List[str]] = None):
 
 
 # ---------------------------------------------------------------------------
+# Auth Endpoints — Register / Login / Me
+# ---------------------------------------------------------------------------
+@app.post("/api/auth/register")
+def register_user(req: RegisterRequest):
+    """Creates a new user account. Returns a JWT access token on success."""
+    username = (req.username or "").strip().lower()
+    email = (req.email or "").strip().lower()
+    if not username or len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters.")
+    if not req.password or len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="A valid email address is required.")
+
+    # Check uniqueness
+    if db.get_user_by_username(username):
+        raise HTTPException(status_code=409, detail="Username is already taken.")
+    if db.get_user_by_email(email):
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+    hashed = auth.hash_password(req.password)
+    user = db.create_user(username, email, hashed, (req.full_name or "").strip())
+    token = auth.create_access_token(user["id"], user["username"], user["email"])
+    return {
+        "status": "success",
+        "message": "Account created successfully.",
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {"id": user["id"], "username": user["username"], "email": user["email"], "full_name": user.get("full_name", "")}
+    }
+
+
+@app.post("/api/auth/login")
+def login_user(req: LoginRequest):
+    """Authenticates a user and returns a JWT access token."""
+    login_id = (req.username or req.email or req.login or "").strip().lower()
+    if not login_id:
+        raise HTTPException(status_code=400, detail="Please enter your username or email.")
+    user = db.get_user_by_username(login_id) or db.get_user_by_email(login_id)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    # Validate password, also checking stripped version in case of clipboard whitespace
+    valid = auth.verify_password(req.password, user["password_hash"])
+    if not valid and req.password.strip() != req.password:
+        valid = auth.verify_password(req.password.strip(), user["password_hash"])
+    if not valid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    token = auth.create_access_token(user["id"], user["username"], user["email"])
+    return {
+        "status": "success",
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {"id": user["id"], "username": user["username"], "email": user["email"], "full_name": user.get("full_name", "")}
+    }
+
+
+@app.get("/api/auth/me")
+def get_me(current_user: dict = Depends(auth.get_current_user)):
+    """Returns the profile of the currently authenticated user."""
+    user = db.get_user_by_id(current_user["id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return {"status": "ok", "user": user}
+
+
+@app.get("/api/auth/demo-users")
+@app.get("/api/auth/suggested-users")
+def get_demo_users():
+    """Returns available user accounts (both demo accounts and newly created users) for quick selection and suggestions."""
+    users = db.get_suggested_users()
+    return {
+        "status": "ok",
+        "users": users,
+        "demo_usernames": ["alex", "morgan", "vedant"],
+        "default_password": "password123"
+    }
+
+
+# ---------------------------------------------------------------------------
 # API Routes & Real-Time SSE Stream
 # ---------------------------------------------------------------------------
 @app.get("/api/events")
@@ -754,17 +924,22 @@ async def upload_images(files: List[UploadFile] = File(...)):
 
 
 @app.post("/api/upload/batch")
-async def upload_batch_products(files: List[UploadFile] = File(...)):
+async def upload_batch_products(
+    files: List[UploadFile] = File(...),
+    skip_duplicates: Optional[bool] = Query(False),
+    current_user: dict = Depends(auth.get_current_user)
+):
     """
     Ingests and deploys multiple product photos simultaneously into the system.
     For every uploaded image:
       1. Validates format against SUPPORTED_EXTENSIONS.
       2. Saves into inputs/ with conflict-free naming.
-      3. Performs perceptual visual hash matching (check_duplicate).
-      4. Auto-resolves/creates appropriate category via category_classifier.
-      5. Auto-generates clean product name & unique SKU.
-      6. Registers product in SQLite DB and links raw/cutout assets.
-      7. Returns batch deployment summary and any detected duplicates.
+      3. Performs perceptual visual hash & cryptographic matching (check_duplicate).
+      4. If skip_duplicates=True and match found: skips product creation and reclaims file.
+      5. Auto-resolves/creates appropriate category via category_classifier.
+      6. Auto-generates clean product name & unique SKU.
+      7. Registers product in SQLite DB scoped to the authenticated user.
+      8. Returns batch deployment summary and any detected duplicates.
     """
     imported = []
     rejected = []
@@ -807,7 +982,7 @@ async def upload_batch_products(files: List[UploadFile] = File(...)):
                 filename=safe_filename
             )
 
-            # Perceptual duplicate check
+            # Perceptual & cryptographic duplicate check
             dup_info = image_search.check_duplicate(dest_path)
             is_dup = dup_info.get("exists", False)
             dup_match = dup_info.get("match")
@@ -815,8 +990,16 @@ async def upload_batch_products(files: List[UploadFile] = File(...)):
                 duplicates.append({
                     "filename": safe_filename,
                     "product_name": clean_title,
-                    "matched_product": dup_match
+                    "matched_product": dup_match,
+                    "skipped": bool(skip_duplicates)
                 })
+                if skip_duplicates:
+                    if os.path.exists(dest_path):
+                        try:
+                            os.remove(dest_path)
+                        except Exception:
+                            pass
+                    continue
 
             # Auto-resolve or create category
             cat_id, cat_name, is_new = category_classifier.resolve_product_category(
@@ -834,7 +1017,8 @@ async def upload_batch_products(files: List[UploadFile] = File(...)):
                 sku=sku,
                 category_id=cat_id,
                 raw_image=dest_path,
-                status="raw"
+                status="raw",
+                user_id=current_user["id"]
             )
 
             # If cutout already exists in processed_images, link it immediately
@@ -1012,7 +1196,14 @@ def generate_scene_endpoint(req: GenerateSceneRequest):
                 preset_id=req.preset_id,
                 aspect_ratio=req.aspect_ratio,
                 custom_prompt=req.custom_prompt,
-                shadow_intensity=req.shadow_intensity
+                shadow_intensity=req.shadow_intensity,
+                contact_shadow=req.contact_shadow,
+                drop_shadow=req.drop_shadow,
+                light_angle_deg=req.light_angle_deg,
+                shadow_distance=req.shadow_distance,
+                shadow_blur=req.shadow_blur,
+                color_tone_match=req.color_tone_match,
+                color_match_intensity=req.color_match_intensity
             )
             return res
     except Exception as e:
@@ -1240,9 +1431,18 @@ def view_angles_gif(base_name: str, duration: int = 65):
 # Category Management CRUD Routes
 # ---------------------------------------------------------------------------
 @app.get("/api/categories")
-def get_categories():
-    """Returns all categories with their active product counts."""
-    return {"categories": db.list_categories()}
+def get_categories(authorization: Optional[str] = Header(None)):
+    """Returns all categories with their active product counts (scoped to user if authenticated)."""
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+        payload = auth.decode_access_token(token)
+        if payload and payload.get("sub"):
+            try:
+                user_id = int(payload["sub"])
+            except (ValueError, TypeError):
+                user_id = None
+    return {"categories": db.list_categories(user_id=user_id)}
 
 
 @app.post("/api/categories")
@@ -1281,16 +1481,18 @@ def list_products_endpoint(
     status: Optional[str] = Query(None),
     sort_by: str = Query("newest"),
     limit: int = Query(100),
-    offset: int = Query(0)
+    offset: int = Query(0),
+    current_user: dict = Depends(auth.get_current_user)
 ):
-    """Lists products with optional category, search, status filters, and sorting."""
+    """Lists products for the authenticated user with optional filters."""
     return db.list_products(
         category_id=category_id,
         search=search,
         status=status,
         sort_by=sort_by,
         limit=limit,
-        offset=offset
+        offset=offset,
+        user_id=current_user["id"]
     )
 
 
@@ -1300,12 +1502,28 @@ def get_product_endpoint(product_id: int):
     prod = db.get_product(product_id)
     if not prod:
         raise HTTPException(status_code=404, detail="Product not found.")
+
+    # Populate latest rendered scene URL if available
+    scenes = [img for img in prod.get("images", []) if img.get("image_type") == "scene"]
+    if scenes:
+        latest = scenes[-1]
+        sc_path = latest.get("image_path")
+        if sc_path and os.path.exists(sc_path):
+            prod["rendered_scene_url"] = f"/generated_scenes/{os.path.basename(sc_path)}"
+            prod["rendered_scene_filename"] = os.path.basename(sc_path)
+            meta = latest.get("metadata") or {}
+            if isinstance(meta, str):
+                import json
+                try: meta = json.loads(meta)
+                except: meta = {}
+            prod["selected_preset"] = meta.get("preset", "marble")
+
     return {"status": "ok", "product": prod}
 
 
 @app.post("/api/products")
-def create_product_endpoint(req: ProductCreate):
-    """Creates a new product record, auto-categorizing if category_id is omitted."""
+def create_product_endpoint(req: ProductCreate, current_user: dict = Depends(auth.get_current_user)):
+    """Creates a new product record for the authenticated user."""
     try:
         cat_id = req.category_id
         if not cat_id:
@@ -1324,7 +1542,8 @@ def create_product_endpoint(req: ProductCreate):
             description=req.description,
             tags=req.tags,
             raw_image=req.raw_image,
-            cutout_image=req.cutout_image
+            cutout_image=req.cutout_image,
+            user_id=current_user["id"]
         )
         return {"status": "success", "product": prod}
     except Exception as e:
@@ -1355,6 +1574,109 @@ def delete_product_endpoint(product_id: int, remove_files: bool = True):
     if not ok:
         raise HTTPException(status_code=404, detail="Product not found.")
     return {"status": "success", "message": f"Product {product_id} deleted."}
+
+
+@app.post("/api/ai/generate-product")
+def generate_ai_product_endpoint(req: GenerateProductRequest, current_user: dict = Depends(auth.get_current_user)):
+    """
+    AI Product Generation Endpoint:
+    Accepts natural language product description, generates commercial image,
+    runs BiRefNet cutout generation, assigns category, and persists into DB
+    associated with current_user['id'].
+    """
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="A descriptive prompt is required to generate a product.")
+
+    try:
+        model, device = get_model()
+        
+        # 1. Generate & synthesize image + cutout
+        gen_data = ai_generator.generate_and_save_product(
+            prompt=req.prompt,
+            user_id=current_user["id"],
+            product_name=req.product_name,
+            style_preset=req.style_preset or "studio",
+            aspect_ratio=req.aspect_ratio or "1:1",
+            category_id=req.category_id,
+            birefnet_model=model,
+            device=device
+        )
+
+        # 2. Resolve Category if not explicitly provided
+        cat_id = req.category_id
+        if not cat_id:
+            c_id, _, _ = category_classifier.resolve_product_category(
+                product_name=gen_data["name"],
+                raw_image_path=gen_data["raw_path"],
+                tags=gen_data["tags"],
+                description=req.prompt
+            )
+            cat_id = c_id
+
+        # 3. Create Product in DB bound to current_user["id"]
+        prod = db.create_product(
+            name=gen_data["name"],
+            sku=gen_data["sku"],
+            category_id=cat_id,
+            description=req.prompt,
+            tags=gen_data["tags"],
+            raw_image=gen_data["raw_path"],
+            cutout_image=gen_data["cutout_path"],
+            user_id=current_user["id"]
+        )
+
+        # 4. Record image assets in DB
+        db.record_product_asset(prod["id"], "raw", gen_data["raw_path"])
+        db.record_product_asset(prod["id"], "cutout", gen_data["cutout_path"])
+        db.update_product(prod["id"], status="cutout_ready")
+
+        # 5. Broadcast real-time update
+        broadcast_event("product_created", {
+            "id": prod["id"],
+            "name": prod["name"],
+            "sku": prod["sku"],
+            "user_id": current_user["id"],
+            "raw_url": f"/inputs/{gen_data['raw_image']}",
+            "cutout_url": f"/processed_images/{gen_data['cutout_image']}",
+            "status": "cutout_ready"
+        })
+
+        return {
+            "status": "success",
+            "message": "AI Product generated successfully",
+            "product": prod,
+            "raw_url": f"/inputs/{gen_data['raw_image']}",
+            "cutout_url": f"/processed_images/{gen_data['cutout_image']}"
+        }
+    except Exception as e:
+        print(f"[AI Generation Endpoint Error] {e}")
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+
+
+@app.post("/api/ai/enhance-prompt")
+def enhance_ai_prompt_endpoint(req: EnhancePromptRequest, current_user: dict = Depends(auth.get_current_user)):
+    """
+    AI Prompt Enhancer Endpoint:
+    Analyzes natural language product input from the user and extends/enhances it
+    into a comprehensive, photorealistic commercial studio prompt with materials,
+    lighting, staging, and camera angle for 100% accurate AI image generation.
+    """
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Please enter a product prompt to enhance.")
+
+    try:
+        enhanced_data = ai_generator.enhance_prompt(
+            prompt=req.prompt,
+            style_preset=req.style_preset or "studio"
+        )
+        return {
+            "status": "success",
+            "original_prompt": req.prompt,
+            **enhanced_data
+        }
+    except Exception as e:
+        print(f"[AI Prompt Enhancer Endpoint Error] {e}")
+        raise HTTPException(status_code=500, detail=f"Prompt enhancement failed: {str(e)}")
 
 
 # ---------------------------------------------------------------------------
@@ -1393,9 +1715,10 @@ async def upload_product_with_image(
     category_id: Optional[int] = Form(None),
     sku: Optional[str] = Form(None),
     description: Optional[str] = Form(""),
-    tags: Optional[str] = Form("")
+    tags: Optional[str] = Form(""),
+    current_user: dict = Depends(auth.get_current_user)
 ):
-    """Uploads an image, creates a new product in the catalog, and indexes hashes."""
+    """Uploads an image and creates a new product for the authenticated user."""
     safe_filename = os.path.basename(file.filename)
     dest_path = os.path.join(INPUTS_DIR, safe_filename)
 
@@ -1439,7 +1762,8 @@ async def upload_product_with_image(
             description=description,
             tags=tags,
             raw_image=dest_path,
-            status="raw"
+            status="raw",
+            user_id=current_user["id"]
         )
     finally:
         with _active_upload_lock:
@@ -1459,8 +1783,17 @@ def detect_category_endpoint(req: DetectCategoryRequest):
     Auto-detects the appropriate category for a product.
     Reuses existing category if matching, or creates a new category automatically.
     """
+    input_name = req.name or req.product_name or ""
+    suggested_title = None
+    if category_classifier.is_cryptic_or_raw_title(input_name, req.filename):
+        suggested_title = category_classifier.refine_product_title(
+            input_name,
+            filename=req.filename
+        )
+
+    resolved_name = suggested_title if suggested_title else input_name
     cat_id, cat_name, is_new = category_classifier.resolve_product_category(
-        product_name=req.name,
+        product_name=resolved_name,
         filename=req.filename,
         tags=req.tags,
         description=req.description
@@ -1468,6 +1801,7 @@ def detect_category_endpoint(req: DetectCategoryRequest):
     return {
         "category_id": cat_id,
         "category_name": cat_name,
+        "suggested_title": suggested_title,
         "is_new": is_new
     }
 
@@ -1532,21 +1866,69 @@ async def reverse_image_search_endpoint(file: UploadFile = File(...)):
 # Duplicate Detection & 1-Click Batch Cleanup Routes
 # ---------------------------------------------------------------------------
 @app.get("/api/duplicates")
-def get_duplicates_endpoint(max_distance: int = Query(6, description="Max hamming distance threshold for duplicates")):
+def get_duplicates_endpoint(
+    max_distance: int = Query(6, description="Max hamming distance threshold for duplicates"),
+    sensitivity: Optional[str] = Query("standard", description="Sensitivity mode: strict, standard, or relaxed"),
+    authorization: Optional[str] = Header(None)
+):
     """
-    Scans the entire product catalog for duplicate items using exact raw paths and perceptual visual dHash.
+    Scans the product catalog for duplicate items using exact raw paths, cryptographic MD5 hashes,
+    perceptual visual dHash/pHash, and tight foreground-cropped object matching.
     Clusters duplicates, automatically selects the best primary item to KEEP, and returns candidates to delete.
     """
-    return db.get_catalog_duplicates(max_hamming_distance=max_distance)
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        payload = auth.decode_access_token(token)
+        if payload and "sub" in payload:
+            u = db.get_user_by_username(payload["sub"])
+            if u:
+                user_id = u["id"]
+    return db.get_catalog_duplicates(max_hamming_distance=max_distance, user_id=user_id, sensitivity=sensitivity)
 
 
 @app.post("/api/duplicates/cleanup")
-def cleanup_duplicates_endpoint(req: CleanupDuplicatesRequest):
+def cleanup_duplicates_endpoint(
+    req: CleanupDuplicatesRequest,
+    authorization: Optional[str] = Header(None)
+):
     """
     Deletes specified duplicate product IDs or all catalog duplicates in 1 click.
     Safely purges redundant product records from the database while keeping primary original files intact.
     """
-    return db.cleanup_catalog_duplicates(product_ids=req.product_ids)
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        payload = auth.decode_access_token(token)
+        if payload and "sub" in payload:
+            u = db.get_user_by_username(payload["sub"])
+            if u:
+                user_id = u["id"]
+    return db.cleanup_catalog_duplicates(product_ids=req.product_ids, user_id=user_id)
+
+
+@app.post("/api/duplicates/merge")
+def merge_duplicates_endpoint(
+    req: MergeDuplicatesRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Consolidates cutouts, descriptions, tags, multi-angle camera views, and 3D scenes
+    from duplicate products into the designated primary product, then safely
+    purges redundant records.
+    """
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        payload = auth.decode_access_token(token)
+        if payload and "sub" in payload:
+            u = db.get_user_by_username(payload["sub"])
+            if u:
+                user_id = u["id"]
+    result = db.smart_merge_duplicates(primary_id=req.primary_id, duplicate_ids=req.duplicate_ids, user_id=user_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Merge failed"))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1794,7 +2176,14 @@ def product_stylize_endpoint(product_id: int, req: GenerateSceneRequest):
             preset_id=req.preset_id,
             aspect_ratio=req.aspect_ratio,
             custom_prompt=req.custom_prompt,
-            shadow_intensity=req.shadow_intensity
+            shadow_intensity=req.shadow_intensity,
+            contact_shadow=req.contact_shadow,
+            drop_shadow=req.drop_shadow,
+            light_angle_deg=req.light_angle_deg,
+            shadow_distance=req.shadow_distance,
+            shadow_blur=req.shadow_blur,
+            color_tone_match=req.color_tone_match,
+            color_match_intensity=req.color_match_intensity
         )
         scene_path = res.get("output_path") or res.get("file_path")
         if scene_path and os.path.exists(scene_path):
@@ -1803,6 +2192,8 @@ def product_stylize_endpoint(product_id: int, req: GenerateSceneRequest):
         res["url"] = res.get("output_url")
         res["file_url"] = res.get("output_url")
         res["file_path"] = scene_path
+        if scene_path:
+            res["filename"] = os.path.basename(scene_path)
         return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Stylization failed: {str(e)}")
@@ -1816,17 +2207,36 @@ def get_export_dimensions():
 
 @app.post("/api/export")
 def export_image_endpoint(req: ExportImageRequest):
-    """Exports and beautifies an image in requested format (PNG, JPG, WebP, TIFF) & size."""
+    """Exports and beautifies an image in requested format (PNG, JPG, WebP, TIFF) & size with optional text-preserving super-resolution."""
     safe_name = os.path.basename(req.source_image)
     candidates = [
-        os.path.join(PROCESSED_DIR, safe_name),
         os.path.join(GENERATED_DIR, safe_name),
+        os.path.join(PROCESSED_DIR, safe_name),
         os.path.join(INPUTS_DIR, safe_name),
         os.path.join(BASE_DIR, safe_name),
     ]
     source_path = next((p for p in candidates if os.path.exists(p)), None)
     if not source_path:
         raise HTTPException(status_code=404, detail=f"Source image '{safe_name}' not found.")
+
+    # If styling preset requested on export and source is a cutout, composite the styled scene first
+    if req.preset_id and req.preset_id not in ["white", "transparent", "none"]:
+        try:
+            from PIL import Image as PILImage
+            with PILImage.open(source_path) as chk_img:
+                is_cutout = chk_img.mode in ("RGBA", "LA")
+            if is_cutout:
+                scene_res = generate_product_scene(
+                    cutout_path=source_path,
+                    preset_id=req.preset_id,
+                    aspect_ratio=req.aspect_ratio if req.aspect_ratio in ASPECT_RATIOS else "1:1",
+                    custom_prompt=req.custom_prompt
+                )
+                sc_out = scene_res.get("output_path") or scene_res.get("file_path")
+                if sc_out and os.path.exists(sc_out):
+                    source_path = sc_out
+        except Exception as preset_err:
+            print(f"[Export Warning] Could not render preset scene for export: {preset_err}")
 
     try:
         res = beautify_service.render_and_export_image(
@@ -1841,12 +2251,234 @@ def export_image_endpoint(req: ExportImageRequest):
             brightness=req.brightness,
             contrast=req.contrast,
             saturation=req.saturation,
-            sharpness=req.sharpness
+            sharpness=req.sharpness,
+            upscale_factor=req.upscale_factor,
+            preserve_text=req.preserve_text
         )
         res["download_url"] = res.get("file_url")
         return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# NEW FEATURES: Artificial Shadow, AI Upscaling & Color Tone Match Endpoints
+# ---------------------------------------------------------------------------
+@app.post("/api/shadow/apply")
+def apply_shadow_endpoint(req: ShadowApplyRequest):
+    """
+    Synthesizes artificial contact shadow and directional drop shadow with 360-degree angle slider.
+    """
+    source_path = None
+    if req.product_id:
+        prod = db.get_product(req.product_id)
+        if prod and prod.get("cutout_image") and os.path.exists(prod["cutout_image"]):
+            source_path = prod["cutout_image"]
+
+    if not source_path and req.cutout_filename:
+        safe_name = os.path.basename(req.cutout_filename)
+        candidates = [
+            os.path.join(PROCESSED_DIR, safe_name),
+            os.path.join(GENERATED_DIR, safe_name),
+            os.path.join(INPUTS_DIR, safe_name),
+            os.path.join(BASE_DIR, safe_name)
+        ]
+        source_path = next((p for p in candidates if os.path.exists(p)), None)
+
+    if not source_path:
+        raise HTTPException(status_code=404, detail="Cutout image not found for shadow synthesis.")
+
+    try:
+        from PIL import Image as PILImage
+        img = PILImage.open(source_path)
+        out_img = shadow_service.synthesize_artificial_shadows(
+            img,
+            contact_shadow=req.contact_shadow,
+            drop_shadow=req.drop_shadow,
+            light_angle_deg=req.light_angle_deg,
+            shadow_distance=req.shadow_distance,
+            shadow_blur=req.shadow_blur,
+            contact_intensity=req.contact_intensity,
+            drop_intensity=req.drop_intensity,
+            shadow_color=req.shadow_color or (20, 25, 35),
+            shadow_mode=req.shadow_mode,
+            background_type=req.background_type
+        )
+
+        base = os.path.splitext(os.path.basename(source_path))[0]
+        ts = int(time.time())
+        ext = "png" if req.background_type == "transparent" else "jpg"
+        out_filename = f"{base}_shadow_{ts}.{ext}"
+        out_path = os.path.join(GENERATED_DIR, out_filename)
+
+        if ext == "jpg":
+            out_img = out_img.convert("RGB")
+            out_img.save(out_path, quality=95)
+        else:
+            out_img.save(out_path, format="PNG")
+
+        if req.product_id:
+            db.record_product_asset(req.product_id, "shadow", out_path, metadata={
+                "light_angle": req.light_angle_deg,
+                "shadow_distance": req.shadow_distance
+            })
+
+        return {
+            "status": "success",
+            "filename": out_filename,
+            "url": f"/generated_scenes/{out_filename}",
+            "file_url": f"/generated_scenes/{out_filename}",
+            "file_path": out_path,
+            "width": out_img.size[0],
+            "height": out_img.size[1],
+            "light_angle_deg": req.light_angle_deg,
+            "contact_shadow": req.contact_shadow,
+            "drop_shadow": req.drop_shadow
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Shadow generation failed: {str(e)}")
+
+
+@app.post("/api/upscale")
+def upscale_image_endpoint(req: UpscaleRequest):
+    """
+    Performs 2x or 4x AI resolution enhancement preserving text and labels on packaging.
+    """
+    safe_name = os.path.basename(req.source_image)
+    candidates = [
+        os.path.join(GENERATED_DIR, safe_name),
+        os.path.join(PROCESSED_DIR, safe_name),
+        os.path.join(INPUTS_DIR, safe_name),
+        os.path.join(EXPORTS_DIR, safe_name),
+        os.path.join(BASE_DIR, safe_name)
+    ]
+    source_path = next((p for p in candidates if os.path.exists(p)), None)
+    if not source_path:
+        raise HTTPException(status_code=404, detail=f"Source image '{safe_name}' not found.")
+
+    try:
+        base = os.path.splitext(safe_name)[0]
+        ts = int(time.time())
+        out_filename = f"{base}_{req.scale_factor}x_upscaled_{ts}.png"
+        out_path = os.path.join(EXPORTS_DIR, out_filename)
+
+        res_img, meta = upscale_service.upscale_image(
+            image_input=source_path,
+            scale_factor=req.scale_factor,
+            preserve_text=req.preserve_text,
+            denoise_flats=req.denoise_flats,
+            output_path=out_path
+        )
+
+        if req.product_id:
+            db.record_product_asset(req.product_id, "upscaled", out_path, metadata=meta)
+
+        return {
+            "status": "success",
+            "filename": out_filename,
+            "url": f"/exports/{out_filename}",
+            "file_url": f"/exports/{out_filename}",
+            "file_path": out_path,
+            "scale_factor": req.scale_factor,
+            "original_size": meta["original_size"],
+            "upscaled_size": meta["upscaled_size"],
+            "preserve_text": req.preserve_text,
+            "elapsed_ms": meta["elapsed_ms"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upscaling failed: {str(e)}")
+
+
+@app.post("/api/color-match")
+def color_match_endpoint(req: ColorToneMatchRequest):
+    """
+    Harmonizes product white balance and color tone with scene atmosphere.
+    """
+    safe_prod = os.path.basename(req.product_image)
+    candidates = [
+        os.path.join(PROCESSED_DIR, safe_prod),
+        os.path.join(INPUTS_DIR, safe_prod),
+        os.path.join(BASE_DIR, safe_prod)
+    ]
+    prod_path = next((p for p in candidates if os.path.exists(p)), None)
+    if not prod_path:
+        raise HTTPException(status_code=404, detail=f"Product image '{safe_prod}' not found.")
+
+    ref_path = None
+    if req.reference_image:
+        safe_ref = os.path.basename(req.reference_image)
+        ref_candidates = [
+            os.path.join(GENERATED_DIR, safe_ref),
+            os.path.join(INPUTS_DIR, safe_ref),
+            os.path.join(BASE_DIR, safe_ref)
+        ]
+        ref_path = next((p for p in ref_candidates if os.path.exists(p)), None)
+
+    try:
+        from PIL import Image as PILImage
+        p_img = PILImage.open(prod_path)
+
+        if ref_path and os.path.exists(ref_path):
+            r_img = PILImage.open(ref_path)
+        elif req.preset_id:
+            # Procedural studio backdrop for preset
+            r_img, _ = generate_scene.generate_studio_backdrop(req.preset_id, (1024, 1024))
+        else:
+            r_img, _ = generate_scene.generate_studio_backdrop("marble", (1024, 1024))
+
+        matched_img, meta = color_match_service.match_color_tone_to_scene(
+            product_img=p_img,
+            scene_img=r_img,
+            blend_intensity=req.blend_intensity,
+            preserve_luminance=req.preserve_luminance,
+            edge_light_bleed=req.edge_light_bleed
+        )
+
+        base = os.path.splitext(safe_prod)[0]
+        ts = int(time.time())
+        out_filename = f"{base}_tone_matched_{ts}.png"
+        out_path = os.path.join(GENERATED_DIR, out_filename)
+        matched_img.save(out_path, format="PNG")
+
+        if req.product_id:
+            db.record_product_asset(req.product_id, "color_matched", out_path, metadata=meta)
+
+        return {
+            "status": "success",
+            "filename": out_filename,
+            "url": f"/generated_scenes/{out_filename}",
+            "file_url": f"/generated_scenes/{out_filename}",
+            "file_path": out_path,
+            "blend_intensity": req.blend_intensity,
+            "metadata": meta
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Color tone match failed: {str(e)}")
+
+
+# PWA Static Routes
+@app.get("/manifest.json")
+def get_pwa_manifest():
+    manifest_path = os.path.join(STATIC_DIR, "manifest.json")
+    if os.path.exists(manifest_path):
+        return FileResponse(manifest_path, media_type="application/manifest+json")
+    return JSONResponse({
+        "name": "StudioAI - E-Commerce Photography",
+        "short_name": "StudioAI",
+        "start_url": "/",
+        "display": "standalone",
+        "theme_color": "#0A0A0A",
+        "background_color": "#FFFFFF"
+    })
+
+
+@app.get("/sw.js")
+def get_service_worker():
+    sw_path = os.path.join(STATIC_DIR, "sw.js")
+    if os.path.exists(sw_path):
+        return FileResponse(sw_path, media_type="application/javascript")
+    from fastapi import Response
+    return Response(content="// sw", media_type="application/javascript")
 
 
 # Mount static assets & storage directories for direct image viewing in the browser

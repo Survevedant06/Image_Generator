@@ -27,3 +27,4 @@ zero123plus_repo/
 .vscode/
 .idea/
 *.log
+.env

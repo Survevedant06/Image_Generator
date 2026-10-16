@@ -15,7 +15,36 @@ import json
 import time
 import math
 from typing import Dict, Any, List, Optional, Tuple
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageStat
+import numpy as np
+try:
+    from scipy.fftpack import dct as scipy_dct
+    _HAS_SCIPY = True
+except Exception:
+    _HAS_SCIPY = False
+
+_PHASH_CACHE = {}
+_DHASH_CACHE = {}
+_CROP_HASH_CACHE = {}
+
+
+def get_cached_crop_hashes(p_path: str) -> Tuple[str, str]:
+    if not p_path or not os.path.exists(p_path):
+        return "", ""
+    try:
+        mtime = os.path.getmtime(p_path)
+        ck = (p_path, mtime)
+        if ck in _CROP_HASH_CACHE:
+            return _CROP_HASH_CACHE[ck]
+        crop = get_foreground_crop(p_path)
+        dh = compute_dhash(crop) if crop else ""
+        ph = compute_phash(crop) if crop else ""
+        _CROP_HASH_CACHE[ck] = (dh, ph)
+        return dh, ph
+    except Exception:
+        return "", ""
+
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -36,16 +65,33 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # Users Table (authentication)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);")
+
     # Categories Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        slug TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL,
         description TEXT DEFAULT '',
         icon TEXT DEFAULT 'tag',
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        UNIQUE(slug, user_id)
     );
     """)
 
@@ -56,6 +102,7 @@ def init_db():
         name TEXT NOT NULL,
         sku TEXT UNIQUE,
         category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         description TEXT DEFAULT '',
         tags TEXT DEFAULT '',
         raw_image TEXT,
@@ -84,24 +131,197 @@ def init_db():
     );
     """)
 
+    # --- Migrations: add user_id to existing tables if missing (MUST run before indexes) ---
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;")
+    except Exception:
+        pass  # Column already exists
+    try:
+        cursor.execute("ALTER TABLE categories ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;")
+    except Exception:
+        pass  # Column already exists
+
     # Create Indexes for fast searches and duplicate lookups
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_user ON products(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_images_product ON product_images(product_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_images_md5 ON product_images(md5_hash);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_images_dhash ON product_images(dhash);")
 
-    # Insert default Category if empty
-    cursor.execute("SELECT COUNT(*) as cnt FROM categories;")
-    if cursor.fetchone()["cnt"] == 0:
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+    # Seed standard default categories if table is empty or missing Footwear
+    cursor.execute("SELECT id FROM categories WHERE LOWER(name) = 'footwear' LIMIT 1;")
+    if not cursor.fetchone():
+        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
         INSERT INTO categories (name, slug, description, icon, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?);
-        """, ("General Catalog", "general-catalog", "Default catalog for e-commerce products", "package", now, now))
+        VALUES ('Footwear', 'footwear', 'Footwear, sneakers, athletic shoes, loafers, boots, heels, clogs, and sandals', 'footprints', ?, ?);
+        """, (now_str, now_str))
 
     conn.commit()
     conn.close()
+    ensure_default_users()
+
+
+def ensure_default_users():
+    """Ensures exactly the 3 clean accounts (alex, morgan, vedant) exist in the database with password: password123."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    demo_users = [
+        ("alex", "alex@studio.com", "Alex Studio"),
+        ("morgan", "morgan@catalog.com", "Morgan Catalog"),
+        ("vedant", "vedant@studio.com", "Vedant Surve"),
+    ]
+
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    demo_hash = None
+    for username, email, full_name in demo_users:
+        cursor.execute("SELECT id, password_hash FROM users WHERE LOWER(username) = ?;", (username.lower(),))
+        existing = cursor.fetchone()
+        if not existing:
+            if not demo_hash:
+                import bcrypt
+                demo_hash = bcrypt.hashpw(b"password123", bcrypt.gensalt(10)).decode("utf-8")
+            cursor.execute("""
+            INSERT INTO users (username, email, password_hash, full_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?);
+            """, (username.lower(), email.lower(), demo_hash, full_name, now_str, now_str))
+        else:
+            # Guarantee password123 works for demo accounts
+            curr_hash = existing["password_hash"] if existing else ""
+            import bcrypt
+            try:
+                if not bcrypt.checkpw(b"password123", curr_hash.encode("utf-8")):
+                    if not demo_hash:
+                        demo_hash = bcrypt.hashpw(b"password123", bcrypt.gensalt(10)).decode("utf-8")
+                    cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?;", (demo_hash, existing["id"]))
+            except Exception:
+                if not demo_hash:
+                    demo_hash = bcrypt.hashpw(b"password123", bcrypt.gensalt(10)).decode("utf-8")
+                cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?;", (demo_hash, existing["id"]))
+
+    # Prune any other user accounts so only alex, morgan, vedant remain
+    cursor.execute("DELETE FROM users WHERE LOWER(username) NOT IN ('alex', 'morgan', 'vedant');")
+
+    # Also assign any unpartitioned products (user_id IS NULL) to demo users
+    cursor.execute("SELECT id FROM users WHERE LOWER(username) = 'alex';")
+    alex_row = cursor.fetchone()
+    cursor.execute("SELECT id FROM users WHERE LOWER(username) = 'morgan';")
+    morgan_row = cursor.fetchone()
+
+    if alex_row and morgan_row:
+        alex_id = alex_row["id"]
+        morgan_id = morgan_row["id"]
+        cursor.execute("UPDATE products SET user_id = ? WHERE user_id IS NULL AND category_id IN (25, 30, 28, 29, 33);", (alex_id,))
+        cursor.execute("UPDATE products SET user_id = ? WHERE user_id IS NULL AND category_id IN (26, 18, 31, 32, 27);", (morgan_id,))
+        cursor.execute("UPDATE products SET user_id = ? WHERE user_id IS NULL;", (alex_id,))
+
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# User CRUD Operations
+# ---------------------------------------------------------------------------
+def create_user(username: str, email: str, password_hash: str, full_name: str = "") -> Dict[str, Any]:
+    """Creates a new user account. Returns the created user dict."""
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO users (username, email, password_hash, full_name, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?);
+    """, (username.strip().lower(), email.strip().lower(), password_hash, full_name.strip(), now, now))
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return get_user_by_id(user_id)
+
+
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieves a user by their primary key."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, email, full_name, created_at FROM users WHERE id = ?;", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a full user row (including password_hash) by username, with alias mapping."""
+    if not username:
+        return None
+    uname = username.strip().lower()
+    alias_map = {
+        "alex_studio": "alex",
+        "morgan_catalog": "morgan",
+        "vedant_surve": "vedant",
+    }
+    uname = alias_map.get(uname, uname)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE LOWER(username) = ?;", (uname,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a full user row by email address."""
+    if not email:
+        return None
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE LOWER(email) = ?;", (email.strip().lower(),))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_suggested_users() -> List[Dict[str, Any]]:
+    """
+    Returns exactly the 3 users (alex, morgan, vedant) for login suggestions and selection.
+    Includes live product counts for each user.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT u.id, u.username, u.email, u.full_name, u.created_at,
+           COUNT(p.id) as product_count
+    FROM users u
+    LEFT JOIN products p ON u.id = p.user_id
+    GROUP BY u.id
+    ORDER BY 
+        CASE 
+            WHEN u.username = 'alex' THEN 1
+            WHEN u.username = 'morgan' THEN 2
+            WHEN u.username = 'vedant' THEN 3
+            ELSE 4
+        END,
+        u.id ASC;
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+
+    users = []
+    for r in rows:
+        d = dict(r)
+        uname = d["username"]
+        if uname == "alex":
+            field = "Fashion, Beauty & Apparel"
+        elif uname == "morgan":
+            field = "Tech, Tools & Electronics"
+        elif uname == "vedant":
+            field = "Studio Director & Admin"
+        else:
+            field = d.get("full_name") or "Catalog Account"
+        d["field"] = field
+        d["is_demo"] = uname in ("alex", "morgan", "vedant")
+        users.append(d)
+    return users
+
 
 
 # ---------------------------------------------------------------------------
@@ -181,10 +401,20 @@ def compute_phash(img_or_path, hash_size: int = 8, highfreq_factor: int = 4) -> 
     """
     if not img_or_path:
         return ""
+    cache_key = None
+    if isinstance(img_or_path, str):
+        if not os.path.exists(img_or_path):
+            return ""
+        try:
+            mtime = os.path.getmtime(img_or_path)
+            cache_key = (img_or_path, mtime, hash_size, highfreq_factor)
+            if cache_key in _PHASH_CACHE:
+                return _PHASH_CACHE[cache_key]
+        except Exception:
+            cache_key = None
+
     try:
         if isinstance(img_or_path, str):
-            if not os.path.exists(img_or_path):
-                return ""
             img = Image.open(img_or_path)
         else:
             img = img_or_path
@@ -199,28 +429,36 @@ def compute_phash(img_or_path, hash_size: int = 8, highfreq_factor: int = 4) -> 
 
         N = hash_size * highfreq_factor  # 32
         img_res = img_gray.resize((N, N), Image.Resampling.BILINEAR)
-        pixels = list(img_res.tobytes())
-        matrix = [pixels[i * N:(i + 1) * N] for i in range(N)]
 
-        # 2D DCT computation for top 8x8 low-frequency components
-        dct = [[0.0] * hash_size for _ in range(hash_size)]
-        for u in range(hash_size):
-            for v in range(hash_size):
-                sum_val = 0.0
-                for x in range(N):
-                    for y in range(N):
-                        sum_val += matrix[x][y] * math.cos(((2 * x + 1) * u * math.pi) / (2.0 * N)) * math.cos(((2 * y + 1) * v * math.pi) / (2.0 * N))
-                dct[u][v] = sum_val
-
-        # Exclude DC coefficient (0,0) from median calculation
-        vals = [dct[u][v] for u in range(hash_size) for v in range(hash_size) if not (u == 0 and v == 0)]
-        median = sorted(vals)[len(vals) // 2]
-        bits = [1 if dct[u][v] > median else 0 for u in range(hash_size) for v in range(hash_size)]
+        if _HAS_SCIPY:
+            arr = np.frombuffer(img_res.tobytes(), dtype=np.uint8).reshape((N, N)).astype(np.float64)
+            dct_2d = scipy_dct(scipy_dct(arr, axis=0, type=2), axis=1, type=2)
+            dct_low = dct_2d[:hash_size, :hash_size]
+            vals = [dct_low[u, v] for u in range(hash_size) for v in range(hash_size) if not (u == 0 and v == 0)]
+            median = sorted(vals)[len(vals) // 2]
+            bits = [1 if dct_low[u, v] > median else 0 for u in range(hash_size) for v in range(hash_size)]
+        else:
+            pixels = list(img_res.tobytes())
+            matrix = [pixels[i * N:(i + 1) * N] for i in range(N)]
+            dct = [[0.0] * hash_size for _ in range(hash_size)]
+            for u in range(hash_size):
+                for v in range(hash_size):
+                    sum_val = 0.0
+                    for x in range(N):
+                        for y in range(N):
+                            sum_val += matrix[x][y] * math.cos(((2 * x + 1) * u * math.pi) / (2.0 * N)) * math.cos(((2 * y + 1) * v * math.pi) / (2.0 * N))
+                    dct[u][v] = sum_val
+            vals = [dct[u][v] for u in range(hash_size) for v in range(hash_size) if not (u == 0 and v == 0)]
+            median = sorted(vals)[len(vals) // 2]
+            bits = [1 if dct[u][v] > median else 0 for u in range(hash_size) for v in range(hash_size)]
 
         val = 0
         for b in bits:
             val = (val << 1) | b
-        return f"{val:016x}"
+        res_val = f"{val:016x}"
+        if cache_key:
+            _PHASH_CACHE[cache_key] = res_val
+        return res_val
     except Exception as e:
         print(f"[pHash Error] {img_or_path}: {e}")
         return ""
@@ -236,6 +474,85 @@ def hamming_distance(hex1: str, hex2: str) -> int:
     return bin(xor_val).count("1")
 
 
+def compute_avg_rgb(img_or_path) -> Tuple[float, float, float]:
+    """Computes average RGB color across resized 16x16 thumbnail for color verification."""
+    if not img_or_path:
+        return (0.0, 0.0, 0.0)
+    try:
+        if isinstance(img_or_path, str):
+            if not os.path.exists(img_or_path):
+                return (0.0, 0.0, 0.0)
+            img = Image.open(img_or_path)
+        else:
+            img = img_or_path
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ("RGBA", "LA"):
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            alpha_channel = img.split()[-1]
+            background.paste(img, mask=alpha_channel)
+            img = background
+        else:
+            img = img.convert("RGB")
+        img_thumb = img.resize((16, 16), Image.Resampling.BILINEAR)
+        stat = ImageStat.Stat(img_thumb)
+        return (float(stat.mean[0]), float(stat.mean[1]), float(stat.mean[2]))
+    except Exception:
+        return (0.0, 0.0, 0.0)
+
+
+def rgb_distance(rgb1: Tuple[float, float, float], rgb2: Tuple[float, float, float]) -> float:
+    """Euclidean distance in RGB color space."""
+    return math.sqrt(sum((a - b) ** 2 for a, b in zip(rgb1, rgb2)))
+
+
+def get_foreground_crop(img_or_path):
+    """
+    Crops an image tightly to its primary foreground object by eliminating:
+      1. Alpha/transparent padding (for cutouts).
+      2. Solid white/light neutral studio borders (for staged or cropped plates).
+    This allows perceptual visual hashing to match objects regardless of whether
+    the image is in a wide canvas or a cropped bounding box.
+    """
+    if not img_or_path:
+        return None
+    try:
+        if isinstance(img_or_path, str):
+            if not os.path.exists(img_or_path):
+                return None
+            img = Image.open(img_or_path)
+        else:
+            img = img_or_path
+
+        img = ImageOps.exif_transpose(img)
+
+        # 1. Check alpha channel for transparent PNGs
+        if img.mode in ("RGBA", "LA"):
+            alpha = img.split()[-1]
+            bbox = alpha.getbbox()
+            if bbox and (bbox[2] - bbox[0] > 15) and (bbox[3] - bbox[1] > 15):
+                return img.crop(bbox)
+
+        # 2. Check solid/light background for RGB images (e.g. white background studio exports)
+        corners = [
+            img.getpixel((0, 0)),
+            img.getpixel((img.width - 1, 0)),
+            img.getpixel((0, img.height - 1)),
+            img.getpixel((img.width - 1, img.height - 1))
+        ]
+        avg_corner = sum(sum(c[:3]) if isinstance(c, tuple) else c for c in corners) / (len(corners) * (3 if isinstance(corners[0], tuple) else 1))
+        if avg_corner > 220:
+            gray = img.convert("L")
+            inv = ImageOps.invert(gray)
+            mask = inv.point(lambda p: 255 if p > 30 else 0)
+            bbox = mask.getbbox()
+            if bbox and (bbox[2] - bbox[0] > 20) and (bbox[3] - bbox[1] > 20):
+                return img.crop(bbox)
+
+        return img
+    except Exception as e:
+        return None
+
+
 def images_are_visually_identical(img_path1: str, img_path2: str) -> bool:
     """
     Advanced multi-hash detector that determines if two images represent the same visual product,
@@ -247,19 +564,29 @@ def images_are_visually_identical(img_path1: str, img_path2: str) -> bool:
     if not os.path.exists(img_path1) or not os.path.exists(img_path2):
         return False
 
-    # Check dHash
+    # Check direct dHash
     d1 = compute_dhash(img_path1)
     d2 = compute_dhash(img_path2)
-    if d1 and d2:
-        if hamming_distance(d1, d2) <= 4:
-            return True
+    if d1 and d2 and hamming_distance(d1, d2) <= 4:
+        return True
 
-    # Check pHash
+    # Check direct pHash
     p1 = compute_phash(img_path1)
     p2 = compute_phash(img_path2)
-    if p1 and p2:
-        if hamming_distance(p1, p2) <= 6:
-            return True
+    if p1 and p2 and hamming_distance(p1, p2) <= 6:
+        return True
+
+    # Check foreground cropped hashes
+    c1 = get_foreground_crop(img_path1)
+    c2 = get_foreground_crop(img_path2)
+    if c1 and c2:
+        cd1 = compute_dhash(c1)
+        cd2 = compute_dhash(c2)
+        cp1 = compute_phash(c1)
+        cp2 = compute_phash(c2)
+        if cd1 and cd2 and cp1 and cp2:
+            if hamming_distance(cd1, cd2) <= 4 and hamming_distance(cp1, cp2) <= 6:
+                return True
 
     return False
 
@@ -267,18 +594,28 @@ def images_are_visually_identical(img_path1: str, img_path2: str) -> bool:
 # ---------------------------------------------------------------------------
 # Category CRUD Operations
 # ---------------------------------------------------------------------------
-def list_categories() -> List[Dict[str, Any]]:
-    """Lists all categories along with their current product count."""
+def list_categories(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Lists all categories along with their current product count (scoped by user_id if provided)."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-    SELECT c.id, c.name, c.slug, c.description, c.icon, c.created_at, c.updated_at,
-           COUNT(p.id) as product_count
-    FROM categories c
-    LEFT JOIN products p ON c.id = p.category_id
-    GROUP BY c.id
-    ORDER BY c.name ASC;
-    """)
+    if user_id is not None:
+        cursor.execute("""
+        SELECT c.id, c.name, c.slug, c.description, c.icon, c.created_at, c.updated_at,
+               COUNT(p.id) as product_count
+        FROM categories c
+        LEFT JOIN products p ON c.id = p.category_id AND p.user_id = ?
+        GROUP BY c.id
+        ORDER BY c.name ASC;
+        """, (user_id,))
+    else:
+        cursor.execute("""
+        SELECT c.id, c.name, c.slug, c.description, c.icon, c.created_at, c.updated_at,
+               COUNT(p.id) as product_count
+        FROM categories c
+        LEFT JOIN products p ON c.id = p.category_id
+        GROUP BY c.id
+        ORDER BY c.name ASC;
+        """)
     rows = cursor.fetchall()
     categories = [dict(row) for row in rows]
     conn.close()
@@ -411,7 +748,8 @@ def create_product(
     tags: str = "",
     raw_image: Optional[str] = None,
     cutout_image: Optional[str] = None,
-    status: str = "raw"
+    status: str = "raw",
+    user_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """Creates a new product entry in the database."""
     now = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -422,10 +760,15 @@ def create_product(
     if not sku:
         sku = generate_unique_sku(cursor, name)
 
-    # Deduplication Guard: Check if a product with this raw_image already exists
+    # Deduplication Guard: Check if a product with this raw_image already exists (scoped to user)
     if raw_image:
         norm_raw = os.path.normpath(os.path.abspath(raw_image)).lower()
-        cursor.execute("SELECT id, raw_image, cutout_image FROM products WHERE raw_image IS NOT NULL;")
+        base_query = "SELECT id, raw_image, cutout_image FROM products WHERE raw_image IS NOT NULL"
+        q_params = []
+        if user_id is not None:
+            base_query += " AND user_id = ?"
+            q_params.append(user_id)
+        cursor.execute(base_query, q_params)
         for row in cursor.fetchall():
             if row[1] and os.path.normpath(os.path.abspath(row[1])).lower() == norm_raw:
                 existing_id = row[0]
@@ -440,9 +783,9 @@ def create_product(
                 return get_product(existing_id)
 
     cursor.execute("""
-    INSERT INTO products (name, sku, category_id, description, tags, raw_image, cutout_image, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """, (name.strip(), sku.strip(), category_id, description.strip(), tags.strip(), raw_image, cutout_image, status, now, now))
+    INSERT INTO products (name, sku, category_id, user_id, description, tags, raw_image, cutout_image, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, (name.strip(), sku.strip(), category_id, user_id, description.strip(), tags.strip(), raw_image, cutout_image, status, now, now))
     prod_id = cursor.lastrowid
 
     # If raw image provided, index it into product_images
@@ -531,9 +874,10 @@ def list_products(
     status: Optional[str] = None,
     sort_by: str = "newest",
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    user_id: Optional[int] = None
 ) -> Dict[str, Any]:
-    """Lists products with optional filtering by category, text search, or status."""
+    """Lists products with optional filtering by category, text search, status, or user."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -546,6 +890,10 @@ def list_products(
     WHERE 1=1
     """
     params = []
+
+    if user_id is not None:
+        query += " AND p.user_id = ?"
+        params.append(user_id)
 
     if category_id is not None:
         query += " AND p.category_id = ?"
@@ -756,12 +1104,14 @@ def delete_product(product_id: int, remove_files: bool = True) -> bool:
 # ---------------------------------------------------------------------------
 # Visual Similarity & Duplicate Checking
 # ---------------------------------------------------------------------------
-def find_duplicate_or_similar_image(file_path: str, max_hamming_distance: int = 6) -> Optional[Dict[str, Any]]:
+def find_duplicate_or_similar_image(file_path: str, max_hamming_distance: int = 3, min_similarity: float = 0.94) -> Optional[Dict[str, Any]]:
     """
     Checks whether the given image matches any existing product image via:
       1. Exact file path (case-normalized)
       2. Exact MD5 hash
-      3. Dual-layer perceptual hashing (dHash + pHash) invariant to formats (PNG, JPG, WebP, BMP)
+      3. Dual-layer perceptual hashing (dHash + pHash) with color verification,
+         invariant to image formats (PNG, JPG, WebP, BMP) and compression,
+         strictly requiring dual-hash convergence (min_similarity >= 0.94).
     Returns details of the matching product and image if found, else None.
     """
     if not os.path.exists(file_path):
@@ -771,6 +1121,7 @@ def find_duplicate_or_similar_image(file_path: str, max_hamming_distance: int = 
     target_md5 = compute_md5(file_path)
     target_dhash = compute_dhash(file_path)
     target_phash = compute_phash(file_path)
+    target_rgb = compute_avg_rgb(file_path)
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -811,7 +1162,8 @@ def find_duplicate_or_similar_image(file_path: str, max_hamming_distance: int = 
             }
 
         # Exact MD5 check
-        if target_md5 and row_dict.get("md5_hash") == target_md5:
+        cand_md5 = row_dict.get("md5_hash")
+        if target_md5 and (cand_md5 == target_md5 or (cand_path and os.path.exists(cand_path) and compute_md5(cand_path) == target_md5)):
             conn.close()
             return {
                 "match_type": "exact_md5",
@@ -828,60 +1180,61 @@ def find_duplicate_or_similar_image(file_path: str, max_hamming_distance: int = 
                 "product_status": row_dict["product_status"]
             }
 
-    # 2. Perceptual Similarity Match via dHash & pHash
-    if target_dhash or target_phash:
+    # 2. Perceptual Similarity Match via Dual-Hash Convergence (dHash + pHash) & Color Validation
+    if target_dhash and target_phash:
         best_match = None
-        lowest_dist = 999
+        highest_sim = 0.0
+        best_dist = 64
 
         for row in all_images:
             cand = dict(row)
-            cand_dhash = cand.get("dhash") or ""
             cand_path = cand.get("file_path") or ""
+            if not cand_path or not os.path.exists(cand_path):
+                continue
 
-            is_match = False
-            match_dist = 64
+            cand_dhash = cand.get("dhash") or ""
+            if not cand_dhash:
+                cand_dhash = compute_dhash(cand_path)
+            cand_phash = compute_phash(cand_path)
 
-            # Cutout images: require BOTH tight dHash and pHash to prevent silhouette collisions
-            if cand["image_type"] == "cutout":
-                if target_dhash and cand_dhash:
-                    d_dist = hamming_distance(target_dhash, cand_dhash)
-                    if d_dist <= 4:
-                        if target_phash and cand_path and os.path.exists(cand_path):
-                            cand_phash = compute_phash(cand_path)
-                            if cand_phash:
-                                p_dist = hamming_distance(target_phash, cand_phash)
-                                if p_dist <= 6:
-                                    is_match = True
-                                    match_dist = min(d_dist, p_dist)
-                        elif d_dist <= 2:
-                            is_match = True
-                            match_dist = d_dist
-            else:
-                # Raw images: natural backgrounds
-                if target_dhash and cand_dhash:
-                    d_dist = hamming_distance(target_dhash, cand_dhash)
-                    if d_dist <= max_hamming_distance:
-                        is_match = True
-                        match_dist = d_dist
-                if not is_match and target_phash and cand_path and os.path.exists(cand_path):
-                    cand_phash = compute_phash(cand_path)
-                    if cand_phash:
-                        p_dist = hamming_distance(target_phash, cand_phash)
-                        if p_dist <= max_hamming_distance:
-                            is_match = True
-                            match_dist = min(match_dist, p_dist)
+            if not cand_dhash or not cand_phash:
+                continue
 
-            if is_match and match_dist < lowest_dist:
-                lowest_dist = match_dist
+            d_dist = hamming_distance(target_dhash, cand_dhash)
+            p_dist = hamming_distance(target_phash, cand_phash)
+
+            # Perceptual duplicate criteria: require dual-hash convergence
+            is_clone = (
+                (d_dist <= 2 and p_dist <= 3) or
+                (d_dist == 0 and p_dist <= 4) or
+                (p_dist <= 1 and d_dist <= 3) or
+                (d_dist <= 3 and p_dist <= 4)
+            )
+
+            if not is_clone:
+                continue
+
+            # Color verification: prevent silhouette false-positives between different products
+            cand_rgb = compute_avg_rgb(cand_path)
+            c_dist = rgb_distance(target_rgb, cand_rgb)
+            if c_dist > 35.0:
+                continue
+
+            sim_d = 1.0 - (d_dist / 64.0)
+            sim_p = 1.0 - (p_dist / 64.0)
+            combined_sim = round(0.5 * (sim_d + sim_p), 3)
+
+            if combined_sim >= min_similarity and combined_sim > highest_sim:
+                highest_sim = combined_sim
+                best_dist = max(d_dist, p_dist)
                 best_match = cand
 
         if best_match:
             conn.close()
-            similarity = round(1.0 - (lowest_dist / 64.0), 3)
             return {
                 "match_type": "visual_similarity",
-                "similarity_score": similarity,
-                "hamming_distance": lowest_dist,
+                "similarity_score": highest_sim,
+                "hamming_distance": best_dist,
                 "product_id": best_match["product_id"],
                 "product_name": best_match["product_name"],
                 "product_sku": best_match["product_sku"],
@@ -895,6 +1248,7 @@ def find_duplicate_or_similar_image(file_path: str, max_hamming_distance: int = 
 
     conn.close()
     return None
+
 
 
 def search_products_by_dhash(target_dhash: str, max_distance: int = 10) -> List[Dict[str, Any]]:
@@ -1053,18 +1407,51 @@ def sync_existing_files_into_db():
     conn.close()
 
 
-def get_catalog_duplicates(max_hamming_distance: int = 6) -> Dict[str, Any]:
+def get_image_info_quick(path: Optional[str]) -> Dict[str, Any]:
+    """Fast metadata extraction: file size and resolution for UI diff display."""
+    if not path or not os.path.exists(path):
+        return {"size_kb": 0, "width": 0, "height": 0, "resolution": "N/A"}
+    try:
+        sz_kb = round(os.path.getsize(path) / 1024, 1)
+        with Image.open(path) as img:
+            w, h = img.size
+        return {"size_kb": sz_kb, "width": w, "height": h, "resolution": f"{w}x{h}"}
+    except Exception:
+        return {"size_kb": 0, "width": 0, "height": 0, "resolution": "N/A"}
+
+
+def get_catalog_duplicates(
+    max_hamming_distance: int = 6,
+    user_id: Optional[int] = None,
+    sensitivity: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Identifies all duplicate clusters in the product catalog using perceptual visual hashing (dHash)
-    and exact image path matching.
+    Identifies all duplicate clusters in the product catalog using:
+      1. Exact cryptographic MD5 file content hash (identical files with different names).
+      2. Normalized filesystem paths.
+      3. Perceptual visual hashing (dHash + pHash) invariant to format/compression.
+      4. Tight foreground-cropped object bounding box matching.
+
+    Supports sensitivity levels:
+      - 'strict': Hamming distance <= 3 (exact clones & 95%+ match).
+      - 'standard': Hamming distance <= 6 (standard 88%+ match).
+      - 'relaxed': Hamming distance <= 10 (similar angles / crops 75%+).
+
     For each cluster:
-      - Designates the optimal primary product to KEEP (evaluating custom naming, metadata, and assets).
-      - Designates all other products as DUPLICATES recommended for deletion.
+      - Automatically designates the highest-quality primary product to KEEP.
+      - Provides full side-by-side comparison metrics (resolution, file size, similarity %, match reason).
     """
-    prods = list_products(limit=2000).get("products", [])
+    if sensitivity == "strict":
+        max_hamming_distance = 3
+    elif sensitivity == "relaxed":
+        max_hamming_distance = 10
+    elif sensitivity == "standard":
+        max_hamming_distance = 6
+
+    prods = list_products(limit=2000, user_id=user_id).get("products", [])
     n = len(prods)
     if n < 2:
-        return {"duplicate_groups_count": 0, "total_duplicates": 0, "groups": []}
+        return {"duplicate_groups_count": 0, "total_duplicates": 0, "groups": [], "sensitivity": sensitivity or "standard"}
 
     parent = list(range(n))
 
@@ -1083,125 +1470,207 @@ def get_catalog_duplicates(max_hamming_distance: int = 6) -> Dict[str, Any]:
     def norm_p(p):
         return os.path.normcase(os.path.normpath(p)) if p else ""
 
-    # Precompute hashes for raw and cutout images
+    # Precompute hashes and metadata for raw and cutout images
     prod_meta = []
     for p in prods:
         raw_p = p.get("raw_image")
         cut_p = p.get("cutout_image")
         raw_n = norm_p(raw_p)
         cut_n = norm_p(cut_p)
+
+        md5_r = compute_md5(raw_p) if raw_p and os.path.exists(raw_p) else ""
+        md5_c = compute_md5(cut_p) if cut_p and os.path.exists(cut_p) else ""
+
         dh_r = compute_dhash(raw_p) if raw_p and os.path.exists(raw_p) else ""
         ph_r = compute_phash(raw_p) if raw_p and os.path.exists(raw_p) else ""
         dh_c = compute_dhash(cut_p) if cut_p and os.path.exists(cut_p) else ""
         ph_c = compute_phash(cut_p) if cut_p and os.path.exists(cut_p) else ""
+
+        cdh_r, cph_r = get_cached_crop_hashes(raw_p) if raw_p and os.path.exists(raw_p) else ("", "")
+        cdh_c, cph_c = get_cached_crop_hashes(cut_p) if cut_p and os.path.exists(cut_p) else ("", "")
+
         prod_meta.append({
             "raw_path": raw_n,
             "cutout_path": cut_n,
+            "md5_r": md5_r,
+            "md5_c": md5_c,
             "dh_r": dh_r,
             "ph_r": ph_r,
             "dh_c": dh_c,
             "ph_c": ph_c,
+            "cdh_r": cdh_r,
+            "cph_r": cph_r,
+            "cdh_c": cdh_c,
+            "cph_c": cph_c,
         })
 
     # Compare all pairs
+    pair_match_details = {}  # (min(i,j), max(i,j)) -> (match_pct, match_reason)
     for i in range(n):
         for j in range(i + 1, n):
             m1 = prod_meta[i]
             m2 = prod_meta[j]
+            pair_key = (i, j)
 
-            # 1. Exact raw_image match (case-normalized)
+            # 1. Exact MD5 binary file content match
+            if m1["md5_r"] and m2["md5_r"] and m1["md5_r"] == m2["md5_r"]:
+                union(i, j)
+                pair_match_details[pair_key] = (100, "Identical File Content (MD5 Match)")
+                continue
+
+            if m1["md5_c"] and m2["md5_c"] and m1["md5_c"] == m2["md5_c"]:
+                union(i, j)
+                pair_match_details[pair_key] = (100, "Identical Cutout File (MD5 Match)")
+                continue
+
+            # 2. Exact filesystem path match
             if m1["raw_path"] and m2["raw_path"] and m1["raw_path"] == m2["raw_path"]:
                 union(i, j)
+                pair_match_details[pair_key] = (100, "Identical Source Path (100%)")
                 continue
 
-            # 2. Exact cutout_image match (case-normalized, shared or duplicate cutout asset)
             if m1["cutout_path"] and m2["cutout_path"] and m1["cutout_path"] == m2["cutout_path"]:
                 union(i, j)
+                pair_match_details[pair_key] = (100, "Shared Cutout Mask (100%)")
                 continue
 
-            # 3. Cross-format visual hash match on raw photos
+            # 3. Cross-format visual hash match on raw photos (strict dual-hash convergence)
             if m1["dh_r"] and m2["dh_r"] and m1["ph_r"] and m2["ph_r"]:
                 d_dist = hamming_distance(m1["dh_r"], m2["dh_r"])
                 p_dist = hamming_distance(m1["ph_r"], m2["ph_r"])
-                if d_dist <= max_hamming_distance or p_dist <= max_hamming_distance:
+                is_raw_clone = (
+                    (d_dist <= 2 and p_dist <= 3) or
+                    (d_dist == 0 and p_dist <= 4) or
+                    (p_dist <= 1 and d_dist <= 3) or
+                    (d_dist <= 3 and p_dist <= 4)
+                )
+                if is_raw_clone:
+                    worst_dist = max(d_dist, p_dist)
                     union(i, j)
+                    pct = max(0, round((1.0 - (worst_dist / 64.0)) * 100))
+                    pair_match_details[pair_key] = (pct, f"Visual Clone ({pct}%)")
                     continue
 
             # 4. Cross-format visual hash match on cutout images
-            # Cutouts have clean backgrounds: require BOTH dHash <= 4 and pHash <= 6 to prevent silhouette false positives
             if m1["dh_c"] and m2["dh_c"] and m1["ph_c"] and m2["ph_c"]:
                 d_dist = hamming_distance(m1["dh_c"], m2["dh_c"])
                 p_dist = hamming_distance(m1["ph_c"], m2["ph_c"])
-                if d_dist <= min(4, max_hamming_distance) and p_dist <= min(6, max_hamming_distance):
+                is_cutout_clone = (
+                    (d_dist <= 2 and p_dist <= 3) or
+                    (d_dist <= 1 and p_dist <= 4) or
+                    (d_dist <= 3 and p_dist <= 4)
+                )
+                if is_cutout_clone:
+                    worst_dist = max(d_dist, p_dist)
                     union(i, j)
+                    pct = max(0, round((1.0 - (worst_dist / 64.0)) * 100))
+                    pair_match_details[pair_key] = (pct, f"Cutout Visual Clone ({pct}%)")
                     continue
+
+            # 5. Cross-format raw vs cutout visual hash match
+            cross_pairs = [
+                (m1["dh_r"], m1["ph_r"], m2["dh_c"], m2["ph_c"]),
+                (m1["dh_c"], m1["ph_c"], m2["dh_r"], m2["ph_r"]),
+            ]
+            cross_matched = False
+            for dh1, ph1, dh2, ph2 in cross_pairs:
+                if dh1 and dh2 and ph1 and ph2:
+                    d_dist = hamming_distance(dh1, dh2)
+                    p_dist = hamming_distance(ph1, ph2)
+                    if (d_dist <= 2 and p_dist <= 3) or (d_dist <= 1 and p_dist <= 4):
+                        worst_dist = max(d_dist, p_dist)
+                        union(i, j)
+                        pct = max(0, round((1.0 - (worst_dist / 64.0)) * 100))
+                        pair_match_details[pair_key] = (pct, f"Raw/Cutout Hybrid Match ({pct}%)")
+                        cross_matched = True
+                        break
+            if cross_matched:
+                continue
+
+            # 6. Foreground-cropped visual hash match (tight object bounds)
+            crop_pairs = [
+                (m1["cdh_r"], m1["cph_r"], m2["cdh_r"], m2["cph_r"]),
+                (m1["cdh_c"], m1["cph_c"], m2["cdh_c"], m2["cph_c"]),
+                (m1["cdh_r"], m1["cph_r"], m2["cdh_c"], m2["cph_c"]),
+                (m1["cdh_c"], m1["cph_c"], m2["cdh_r"], m2["cph_r"]),
+            ]
+            for cdh1, cph1, cdh2, cph2 in crop_pairs:
+                if cdh1 and cdh2 and cph1 and cph2:
+                    d_dist = hamming_distance(cdh1, cdh2)
+                    p_dist = hamming_distance(cph1, cph2)
+                    lowest_dist = min(d_dist, p_dist)
+                    if d_dist <= min(4, max_hamming_distance) and p_dist <= min(6, max_hamming_distance):
+                        union(i, j)
+                        pct = max(0, round((1.0 - (lowest_dist / 64.0)) * 100))
+                        pair_match_details[pair_key] = (pct, f"Foreground Object Match ({pct}%)")
+                        break
 
     # Group into clusters
     clusters = {}
     for i in range(n):
         r = find(i)
-        clusters.setdefault(r, []).append(prods[i])
+        clusters.setdefault(r, []).append((i, prods[i]))
 
     result_groups = []
     group_idx = 1
-    for root, members in clusters.items():
-        if len(members) < 2:
+    for root, member_pairs in clusters.items():
+        if len(member_pairs) < 2:
             continue
 
-        # Score members to pick primary to KEEP
+        members = [p for _, p in member_pairs]
+        idx_map = {p["id"]: idx for idx, p in member_pairs}
+
+        # Scoring function: selects optimal product to KEEP
         def score(p):
             s = 0
             name = (p.get("name") or "").strip()
-            # Non-generic name
             if not name.lower().startswith("product ") and name.lower() != "product":
-                s += 10
-            # Custom SKU
+                s += 12
             sku = (p.get("sku") or "").strip()
             if sku and not sku.startswith("SKU-"):
                 s += 15
-            # Rich metadata
-            if p.get("description"): s += 3
-            if p.get("tags"): s += 2
-            # Assets created
-            s += (p.get("angle_count", 0) + p.get("scene_count", 0)) * 5
-            # Earlier ID tiebreaker
+            if p.get("description"): s += 5
+            if p.get("tags"): s += 4
+            cut_img = p.get("cutout_image")
+            if cut_img and os.path.exists(cut_img):
+                s += 25
+            if p.get("status") == "completed":
+                s += 20
+            elif p.get("status") == "angles_ready":
+                s += 15
+            elif p.get("status") == "cutout_ready":
+                s += 10
+            s += (p.get("angle_count", 0) + p.get("scene_count", 0)) * 8
             s -= p["id"] * 0.001
             return s
 
         members.sort(key=score, reverse=True)
-        keep = members[0]
+        keep = dict(members[0])
         duplicates = members[1:]
 
-        # Add visual match percentage relative to keep item
-        keep_cut = norm_p(keep.get("cutout_image"))
-        keep_raw = norm_p(keep.get("raw_image"))
-        keep_ph = compute_phash(keep.get("cutout_image") or keep.get("raw_image"))
-        keep_dh = compute_dhash(keep.get("cutout_image") or keep.get("raw_image"))
+        # Attach image info to keep item
+        k_raw_info = get_image_info_quick(keep.get("raw_image"))
+        k_cut_info = get_image_info_quick(keep.get("cutout_image"))
+        keep["raw_size_kb"] = k_raw_info["size_kb"]
+        keep["cutout_size_kb"] = k_cut_info["size_kb"]
+        keep["resolution"] = k_cut_info["resolution"] if k_cut_info["resolution"] != "N/A" else k_raw_info["resolution"]
 
+        keep_idx = idx_map.get(keep["id"])
         enhanced_duplicates = []
         for d in duplicates:
-            d_cut = norm_p(d.get("cutout_image"))
-            d_raw = norm_p(d.get("raw_image"))
-
-            match_pct = 100
-            if keep_cut and d_cut and keep_cut == d_cut:
-                match_pct = 100
-            elif keep_raw and d_raw and keep_raw == d_raw:
-                match_pct = 100
-            else:
-                d_ph = compute_phash(d.get("cutout_image") or d.get("raw_image"))
-                d_dh = compute_dhash(d.get("cutout_image") or d.get("raw_image"))
-                dists = []
-                if keep_ph and d_ph:
-                    dists.append(hamming_distance(keep_ph, d_ph))
-                if keep_dh and d_dh:
-                    dists.append(hamming_distance(keep_dh, d_dh))
-                if dists:
-                    lowest_dist = min(dists)
-                    match_pct = max(0, round((1.0 - (lowest_dist / 64.0)) * 100))
+            d_idx = idx_map.get(d["id"])
+            pair_k = (min(keep_idx, d_idx), max(keep_idx, d_idx)) if keep_idx is not None and d_idx is not None else None
+            
+            match_pct, match_reason = pair_match_details.get(pair_k, (100, "Visual Similarity (100%)")) if pair_k else (100, "Visual Similarity (100%)")
 
             enhanced_d = dict(d)
+            d_raw_info = get_image_info_quick(d.get("raw_image"))
+            d_cut_info = get_image_info_quick(d.get("cutout_image"))
+            enhanced_d["raw_size_kb"] = d_raw_info["size_kb"]
+            enhanced_d["cutout_size_kb"] = d_cut_info["size_kb"]
+            enhanced_d["resolution"] = d_cut_info["resolution"] if d_cut_info["resolution"] != "N/A" else d_raw_info["resolution"]
             enhanced_d["similarity_percentage"] = match_pct
+            enhanced_d["match_reason"] = match_reason
             enhanced_duplicates.append(enhanced_d)
 
         result_groups.append({
@@ -1217,24 +1686,153 @@ def get_catalog_duplicates(max_hamming_distance: int = 6) -> Dict[str, Any]:
     return {
         "duplicate_groups_count": len(result_groups),
         "total_duplicates": total_dups,
+        "sensitivity": sensitivity or "standard",
+        "threshold_max_distance": max_hamming_distance,
         "groups": result_groups
     }
 
 
-def cleanup_catalog_duplicates(product_ids: Optional[List[int]] = None) -> Dict[str, Any]:
+def smart_merge_duplicates(
+    primary_id: int,
+    duplicate_ids: List[int],
+    user_id: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    Consolidates duplicate product assets and metadata into the primary product,
+    then safely removes redundant duplicate records.
+    Transfers:
+      - Cutout masks (if primary is missing one)
+      - Generated 3D camera angles
+      - Generated commercial scenes
+      - Descriptions and unique search tags
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM products WHERE id = ?;", (primary_id,))
+    primary_row = cursor.fetchone()
+    if not primary_row:
+        conn.close()
+        return {
+            "success": False,
+            "status": "error",
+            "error": f"Primary product ID {primary_id} not found."
+        }
+
+    primary = dict(primary_row)
+    inherited_assets = 0
+    inherited_features = []
+
+    for dup_id in duplicate_ids:
+        if dup_id == primary_id:
+            continue
+        cursor.execute("SELECT * FROM products WHERE id = ?;", (dup_id,))
+        dup_row = cursor.fetchone()
+        if not dup_row:
+            continue
+        dup = dict(dup_row)
+
+        # 1. Inherit cutout mask if primary lacks one
+        if not primary.get("cutout_image") and dup.get("cutout_image"):
+            if os.path.exists(dup["cutout_image"]):
+                cursor.execute(
+                    "UPDATE products SET cutout_image = ?, status = 'cutout_ready' WHERE id = ?;",
+                    (dup["cutout_image"], primary_id)
+                )
+                primary["cutout_image"] = dup["cutout_image"]
+                primary["status"] = "cutout_ready"
+                inherited_assets += 1
+                inherited_features.append("Cutout Mask")
+
+        # 2. Inherit description if primary is empty
+        if not primary.get("description") and dup.get("description"):
+            cursor.execute("UPDATE products SET description = ? WHERE id = ?;", (dup["description"], primary_id))
+            primary["description"] = dup["description"]
+            inherited_features.append("Product Description")
+
+        # 3. Inherit unique tags
+        if dup.get("tags"):
+            existing_tags = set(t.strip().lower() for t in (primary.get("tags") or "").split(",") if t.strip())
+            new_tags = [t.strip() for t in dup["tags"].split(",") if t.strip() and t.strip().lower() not in existing_tags]
+            if new_tags:
+                merged_tags = ((primary.get("tags") or "") + (", " if primary.get("tags") else "")) + ", ".join(new_tags)
+                cursor.execute("UPDATE products SET tags = ? WHERE id = ?;", (merged_tags, primary_id))
+                primary["tags"] = merged_tags
+                inherited_features.append(f"{len(new_tags)} Search Tags")
+
+        # 4. Re-parent product images (3D angles & commercial scenes) to primary product
+        cursor.execute("SELECT * FROM product_images WHERE product_id = ?;", (dup_id,))
+        dup_images = cursor.fetchall()
+        for img in dup_images:
+            img_dict = dict(img)
+            itype = img_dict.get("image_type")
+            fpath = img_dict.get("file_path")
+            if itype in ("angle", "scene") and fpath and os.path.exists(fpath):
+                cursor.execute("SELECT id FROM product_images WHERE product_id = ? AND file_path = ?;", (primary_id, fpath))
+                if not cursor.fetchone():
+                    cursor.execute("UPDATE product_images SET product_id = ? WHERE id = ?;", (primary_id, img_dict["id"]))
+                    inherited_assets += 1
+
+    conn.commit()
+    conn.close()
+
+    # 5. Delete duplicate product records safely
+    deleted_count = 0
+    reclaimed_bytes = 0
+    for dup_id in duplicate_ids:
+        if dup_id != primary_id:
+            if delete_product(dup_id, remove_files=True):
+                deleted_count += 1
+
+    updated_primary = get_product(primary_id)
+    return {
+        "success": True,
+        "status": "success",
+        "primary_product": updated_primary,
+        "primary_id": primary_id,
+        "merged_count": deleted_count,
+        "merged_ids": [d for d in duplicate_ids if d != primary_id],
+        "inherited_assets": inherited_assets,
+        "inherited_features": inherited_features,
+        "message": f"Successfully merged {deleted_count} duplicate(s) into '{primary['name']}' (inherited {inherited_assets} creative assets)!"
+    }
+
+
+def cleanup_catalog_duplicates(product_ids: Optional[List[int]] = None, user_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Deletes specified duplicate product IDs or all identified duplicate products across the catalog in 1 click.
-    Safely purges the duplicate database records while keeping the primary products intact.
+    Calculates exact disk storage reclaimed and safely purges redundant records while keeping primary originals intact.
     """
     if product_ids is None:
-        # Collect all duplicates from all groups
-        dup_data = get_catalog_duplicates()
+        dup_data = get_catalog_duplicates(user_id=user_id)
         to_delete_ids = []
         for g in dup_data.get("groups", []):
             for d in g.get("duplicates", []):
                 to_delete_ids.append(d["id"])
     else:
         to_delete_ids = list(product_ids)
+
+    reclaimed_bytes = 0
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for pid in to_delete_ids:
+        cursor.execute("SELECT raw_image, cutout_image FROM products WHERE id = ?;", (pid,))
+        p_row = cursor.fetchone()
+        if p_row:
+            for fld in ["raw_image", "cutout_image"]:
+                fp = p_row[fld]
+                if fp and os.path.exists(fp):
+                    cursor.execute(
+                        "SELECT COUNT(*) as cnt FROM products WHERE id != ? AND (LOWER(raw_image) = LOWER(?) OR LOWER(cutout_image) = LOWER(?));",
+                        (pid, fp, fp)
+                    )
+                    sh = cursor.fetchone()
+                    if not sh or sh["cnt"] == 0:
+                        try:
+                            reclaimed_bytes += os.path.getsize(fp)
+                        except Exception:
+                            pass
+    conn.close()
 
     deleted_count = 0
     deleted_ids = []
@@ -1243,11 +1841,14 @@ def cleanup_catalog_duplicates(product_ids: Optional[List[int]] = None) -> Dict[
             deleted_count += 1
             deleted_ids.append(pid)
 
+    reclaimed_mb = round(reclaimed_bytes / (1024 * 1024), 2)
     return {
         "status": "success",
         "deleted_count": deleted_count,
         "deleted_ids": deleted_ids,
-        "message": f"Successfully deleted {deleted_count} duplicate product(s) in 1-click!"
+        "reclaimed_bytes": reclaimed_bytes,
+        "reclaimed_mb": reclaimed_mb,
+        "message": f"Successfully purged {deleted_count} duplicate product(s) in 1-click! Reclaimed {reclaimed_mb} MB of storage."
     }
 
 

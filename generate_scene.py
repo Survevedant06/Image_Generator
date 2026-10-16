@@ -524,11 +524,19 @@ def generate_product_scene(
     aspect_ratio: str = "1:1",
     custom_prompt: Optional[str] = None,
     output_filename: Optional[str] = None,
-    shadow_intensity: Optional[float] = None
+    shadow_intensity: Optional[float] = None,
+    contact_shadow: bool = True,
+    drop_shadow: bool = True,
+    light_angle_deg: Optional[float] = None,
+    shadow_distance: Optional[float] = None,
+    shadow_blur: Optional[float] = None,
+    color_tone_match: bool = False,
+    color_match_intensity: float = 0.65
 ) -> Dict[str, Any]:
     """
     Takes a transparent product cutout and renders it onto a commercial studio scene
     formatted for specific e-commerce & marketing aspect ratios (1:1, 4:5, 9:16, 16:9).
+    Now optionally supports customizable artificial shadow generation and atmospheric color tone matching.
     """
     t_start = time.time()
 
@@ -576,17 +584,72 @@ def generate_product_scene(
     target_x = (cw - new_pw) // 2
     target_y = horizon_y - new_ph + int(new_ph * 0.02) # slight 2% sink for realistic ground contact
 
+    # 4b. Optional Color Tone Match (Auto-adjust product white balance to scene atmosphere)
+    if color_tone_match:
+        try:
+            import color_match_service
+            scaled_product, _ = color_match_service.match_color_tone_to_scene(
+                scaled_product,
+                backdrop,
+                target_pos=(target_x, target_y),
+                blend_intensity=color_match_intensity,
+                preserve_luminance=True,
+                edge_light_bleed=True
+            )
+        except Exception as tone_err:
+            print(f"[Warning] Color tone match skipped: {tone_err}")
+
     # 5. Synthesize Shadows
     s_intensity = shadow_intensity if shadow_intensity is not None else preset["shadow_intensity"]
-    shadow_layer = synthesize_contact_and_cast_shadow(
-        scaled_product,
-        (cw, ch),
-        (target_x, target_y),
-        light_angle_deg=preset.get("light_angle_deg", -60),
-        shadow_intensity=s_intensity,
-        shadow_blur=preset.get("shadow_blur", 16),
-        contact_strength=preset.get("contact_strength", 0.85)
-    )
+    s_angle = light_angle_deg if light_angle_deg is not None else preset.get("light_angle_deg", -60)
+    s_blur = shadow_blur if shadow_blur is not None else preset.get("shadow_blur", 16)
+    
+    # If custom contact/drop shadow flags or distance specified, use shadow_service
+    if shadow_distance is not None or not contact_shadow or not drop_shadow:
+        try:
+            import shadow_service
+            # Create separate shadow layer for the scene canvas
+            alpha_scaled = scaled_product.split()[3]
+            c_mask = shadow_service.create_contact_shadow(
+                alpha_scaled, (cw, ch), (target_x, target_y), (new_pw, new_ph),
+                contact_strength=preset.get("contact_strength", 0.85) if contact_shadow else 0.0,
+                contact_blur=max(2.0, s_blur * 0.25)
+            ) if contact_shadow else Image.new("L", (cw, ch), 0)
+
+            d_dist = shadow_distance if shadow_distance is not None else 25.0
+            d_mask = shadow_service.create_directional_drop_shadow(
+                alpha_scaled, (cw, ch), (target_x, target_y), (new_pw, new_ph),
+                light_angle_deg=s_angle,
+                shadow_distance=d_dist,
+                shadow_blur=s_blur,
+                shadow_intensity=s_intensity if drop_shadow else 0.0,
+                mode="ground"
+            ) if drop_shadow else Image.new("L", (cw, ch), 0)
+
+            comb = np.maximum(np.array(c_mask), np.array(d_mask))
+            shadow_layer = Image.new("RGBA", (cw, ch), (20, 25, 35, 0))
+            shadow_layer.putalpha(Image.fromarray(comb))
+        except Exception as sh_err:
+            print(f"[Warning] Advanced shadow synthesis fallback: {sh_err}")
+            shadow_layer = synthesize_contact_and_cast_shadow(
+                scaled_product,
+                (cw, ch),
+                (target_x, target_y),
+                light_angle_deg=s_angle,
+                shadow_intensity=s_intensity,
+                shadow_blur=s_blur,
+                contact_strength=preset.get("contact_strength", 0.85)
+            )
+    else:
+        shadow_layer = synthesize_contact_and_cast_shadow(
+            scaled_product,
+            (cw, ch),
+            (target_x, target_y),
+            light_angle_deg=s_angle,
+            shadow_intensity=s_intensity,
+            shadow_blur=s_blur,
+            contact_strength=preset.get("contact_strength", 0.85)
+        )
 
     # 6. Synthesize Specular Reflection if enabled
     reflection_layer = None
@@ -634,6 +697,9 @@ def generate_product_scene(
         "output_path": out_path,
         "output_filename": output_filename,
         "output_url": f"/generated_scenes/{output_filename}",
+        "file_path": out_path,
+        "file_url": f"/generated_scenes/{output_filename}",
+        "filename": output_filename,
         "canvas_size": (cw, ch),
         "render_time_seconds": elapsed,
         "prompt_used": custom_prompt if custom_prompt else preset["prompt_template"]

@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#0A0A0A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StudioAI">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
   <title>E-Commerce AI Studio | Editorial & Luxury Commerce Suite</title>
   <!-- Google Fonts: Playfair Display, Inter, JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,6 +20,26 @@
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
+    @media (max-width: 768px) {
+      body {
+        padding-bottom: 74px !important; /* Space for mobile bottom bar */
+      }
+      .mobile-sheet-modal {
+        border-radius: 20px 20px 0 0 !important;
+        max-height: 92vh !important;
+        margin-top: auto !important;
+      }
+    }
+    .camera-reticle {
+      position: absolute;
+      inset: 20px;
+      border: 1.5px dashed rgba(255, 255, 255, 0.45);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+    .angle-dial-indicator {
+      transition: transform 0.1s ease-out;
+    }
     body {
       background-color: #F4F4F5;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -77,6 +104,289 @@
     ::-webkit-scrollbar-track { background: #F4F4F5; }
     ::-webkit-scrollbar-thumb { background: #D4D4D8; border-radius: 2px; }
     ::-webkit-scrollbar-thumb:hover { background: #A1A1AA; }
+
+    /* ========== AUTH OVERLAY STYLES ========== */
+    #authOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F4F4F5;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #authOverlay.hidden { display: none; }
+
+    .auth-card {
+      width: 100%;
+      max-width: 430px;
+      padding: 0;
+      background: #FFFFFF;
+      border: 1px solid #E4E4E7;
+      border-radius: 16px;
+      box-shadow: 0 24px 60px -12px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.04);
+      animation: authCardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+      overflow: hidden;
+    }
+    .auth-card-header {
+      padding: 2rem 2.25rem 1.5rem;
+      border-bottom: 1px solid #F4F4F5;
+    }
+    .auth-card-body {
+      padding: 1.75rem 2.25rem 2rem;
+    }
+    @keyframes authCardIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+
+    .auth-input {
+      width: 100%;
+      background: #FAFAFA;
+      border: 1px solid #E4E4E7;
+      border-radius: 8px;
+      color: #0A0A0A;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+      box-sizing: border-box;
+    }
+    .auth-input::placeholder { color: #A1A1AA; }
+    .auth-input:focus {
+      border-color: #0A0A0A;
+      background: #FFFFFF;
+      box-shadow: 0 0 0 3px rgba(10,10,10,0.06);
+    }
+
+    .auth-btn {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 8px;
+      background: #0A0A0A;
+      color: #FFFFFF;
+      font-weight: 600;
+      font-size: 13px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
+      letter-spacing: 0.01em;
+    }
+    .auth-btn:hover  { background: #27272A; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+    .auth-btn:active { transform: scale(0.985); }
+    .auth-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .auth-tab {
+      flex: 1;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #71717A;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      letter-spacing: 0.03em;
+    }
+    .auth-tab.active {
+      background: #FFFFFF;
+      color: #0A0A0A;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .auth-error {
+      font-size: 12px;
+      color: #EF4444;
+      text-align: center;
+      min-height: 18px;
+      margin-top: 4px;
+    }
+    @keyframes authSpinner {
+      to { transform: rotate(360deg); }
+    }
+    .auth-spinner {
+      animation: authSpinner 0.75s linear infinite;
+    }
+    .password-toggle-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: #A1A1AA;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s ease;
+    }
+    .password-toggle-btn:hover {
+      color: #0A0A0A;
+    }
+    .user-chip-btn {
+      background: #F4F4F5;
+      border: 1px solid #E4E4E7;
+      color: #3F3F46;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .user-chip-btn:hover {
+      background: #E4E4E7;
+      border-color: #D4D4D8;
+      color: #0A0A0A;
+      transform: translateY(-1px);
+    }
+    .user-chip-btn:active {
+      transform: translateY(0);
+    }
+    .user-suggestion-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-bottom: 1px solid #F4F4F5;
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+    .user-suggestion-item:last-child {
+      border-bottom: none;
+    }
+    .user-suggestion-item:hover {
+      background: #F4F4F5;
+    }
+    /* Subtle dot-grid background */
+    #authOverlay::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, #D4D4D8 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    #authOverlay::after { display: none; }
+
+    /* ========================================================================= */
+    /* EDITORIAL LUXURY GLITCH PROGRESS BAR & HUD STYLES                         */
+    /* ========================================================================= */
+    #glitchProgressHUD {
+      animation: luxuryHudSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes luxuryHudSlide {
+      from { opacity: 0; transform: translate(-50%, -16px) scale(0.98); }
+      to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+
+    .luxury-glitch-rail {
+      background: linear-gradient(90deg, #0A0A0A 0%, #3f3f46 25%, #0A0A0A 50%, #71717A 75%, #0A0A0A 100%);
+      background-size: 200% 100%;
+      animation: luxuryRailShift 2.5s ease-in-out infinite;
+    }
+    @keyframes luxuryRailShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .luxury-scanlines {
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.02) 0px,
+        rgba(0, 0, 0, 0.02) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+    }
+
+    .luxury-bar-fill {
+      background: #0A0A0A;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+
+    .luxury-bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: luxuryShimmer 1.8s infinite;
+    }
+
+    @keyframes luxuryShimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .luxury-bar-spark {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 6px;
+      background: #FFFFFF;
+      border-radius: 9999px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    }
+
+    /* Editorial Glitch on Card Body during state updates */
+    .luxury-hud-body.glitching {
+      animation: luxuryGlitchSlice 0.32s steps(2, end);
+    }
+    @keyframes luxuryGlitchSlice {
+      0% {
+        transform: translate(0);
+        box-shadow: -2px 0 rgba(220, 38, 38, 0.35), 2px 0 rgba(14, 165, 233, 0.35);
+      }
+      25% {
+        transform: translate(-2px, 0.5px) skewX(-0.3deg);
+        box-shadow: 2px -1px rgba(220, 38, 38, 0.4), -2px 1px rgba(14, 165, 233, 0.4);
+        clip-path: inset(8% 0 12% 0);
+      }
+      50% {
+        transform: translate(1.5px, -0.5px);
+        box-shadow: -1.5px 1px rgba(220, 38, 38, 0.35), 1.5px -1px rgba(14, 165, 233, 0.35);
+        clip-path: inset(0 0 0 0);
+      }
+      75% {
+        transform: translate(-1px, 0);
+      }
+      100% {
+        transform: translate(0);
+        box-shadow: 0 20px 50px -10px rgba(0,0,0,0.18);
+      }
+    }
+
+    .luxury-glitch-text.active-glitch {
+      animation: luxuryTextRgb 0.2s infinite;
+    }
+    @keyframes luxuryTextRgb {
+      0% { text-shadow: -1.5px 0 rgba(220, 38, 38, 0.7), 1.5px 0 rgba(14, 165, 233, 0.7); }
+      50% { text-shadow: 1.5px -0.5px rgba(220, 38, 38, 0.7), -1.5px 0.5px rgba(14, 165, 233, 0.7); }
+      100% { text-shadow: -1.5px 0 rgba(220, 38, 38, 0.7), 1.5px 0 rgba(14, 165, 233, 0.7); }
+    }
+
+    .luxury-glitch-num {
+      transition: all 0.15s ease;
+    }
+    .luxury-hud-body.glitching .luxury-glitch-num {
+      text-shadow: -1px 0 rgba(220, 38, 38, 0.8), 1px 0 rgba(14, 165, 233, 0.8);
+      transform: scale(1.04);
+    }
   </style>
 </head>
 <body class="bg-[#F4F4F5] text-[#0A0A0A] min-h-screen flex flex-col font-sans antialiased selection:bg-[#0A0A0A] selection:text-white">
@@ -137,12 +447,33 @@
       <!-- User Actions & Status Dock (Far Right) -->
       <div class="flex items-center space-x-3 shrink-0 ml-auto">
         <button 
+          onclick="openAiProductModal()"
+          class="h-9 flex items-center space-x-2 px-3.5 rounded-md bg-white hover:bg-[#FAFAFA] active:bg-[#F4F4F5] text-[#0A0A0A] text-xs font-medium border border-[#E4E4E7] shadow-sm transition-all"
+          title="AI Studio: Enter prompt to generate commercial product into your account"
+        >
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+          <span class="hidden sm:inline">AI Studio</span>
+          <span class="text-[9px] uppercase font-mono tracking-widest px-1.5 py-0.5 rounded-[3px] bg-[#0A0A0A] text-white ml-0.5">AI</span>
+        </button>
+
+        <button 
           onclick="openAddProductModal()"
           class="h-9 flex items-center space-x-2 px-3.5 rounded-md bg-[#0A0A0A] hover:bg-[#18181B] active:bg-black text-white text-xs font-medium border border-[#27272A] transition-all"
         >
           <i data-lucide="plus" class="w-3.5 h-3.5"></i>
           <span class="hidden sm:inline">Add Product</span>
         </button>
+
+        <!-- User Badge -->
+        <div id="userBadge" class="hidden h-9 flex items-center space-x-2 px-3 rounded-md bg-white border border-[#E4E4E7] text-xs font-mono">
+          <div class="w-5 h-5 rounded-full bg-[#0A0A0A] flex items-center justify-center">
+            <i data-lucide="user" class="w-3 h-3 text-white"></i>
+          </div>
+          <span id="headerUsername" class="text-[#0A0A0A] font-medium text-[11px] max-w-[80px] truncate"></span>
+          <button onclick="logoutUser()" title="Logout" class="ml-1 text-[#A1A1AA] hover:text-[#E05A47] transition-colors">
+            <i data-lucide="log-out" class="w-3 h-3"></i>
+          </button>
+        </div>
 
         <div id="statusBadge" class="h-9 flex items-center space-x-2 text-xs font-mono px-3 rounded-md bg-white border border-[#E4E4E7] text-[#71717A]">
           <span class="w-2 h-2 rounded-full bg-[#E05A47] animate-pulse"></span>
@@ -264,6 +595,7 @@
           class="border border-dashed border-[#E4E4E7] hover:border-[#0A0A0A] bg-[#FAFAFA] hover:bg-white rounded-md p-6 sm:p-7 transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-between gap-5"
         >
           <input type="file" id="fastUploadInput" accept="image/*,.heic,.heif" multiple class="hidden" onchange="handleMultipleUpload(this.files)" />
+          <input type="file" id="mobileCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleMultipleUpload(this.files)" />
           <div class="flex items-center space-x-4">
             <div class="w-10 h-10 rounded-md bg-white text-[#0A0A0A] border border-[#E4E4E7] flex items-center justify-center shrink-0">
               <i data-lucide="upload-cloud" class="w-5 h-5 text-[#0A0A0A]"></i>
@@ -273,31 +605,41 @@
               <p class="text-xs text-[#71717A] mt-0.5 font-sans">Batch drop RAW/JPG/PNG files. Automatic classification, perceptual deduping, and studio ingestion.</p>
             </div>
           </div>
-          <button 
-            type="button" 
-            onclick="document.getElementById('fastUploadInput').click()" 
-            class="h-9 flex items-center space-x-2 px-4 bg-[#0A0A0A] hover:bg-[#18181B] active:bg-black text-white rounded-md text-xs font-medium transition-all shrink-0 border border-[#27272A]"
-          >
-            <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
-            <span>Browse Files</span>
-          </button>
+          <div class="flex items-center space-x-2.5 shrink-0 flex-wrap">
+            <label class="inline-flex items-center space-x-1.5 cursor-pointer text-[11px] font-mono text-[#71717A] hover:text-[#0A0A0A] select-none mr-1.5" title="Automatically prevent redundant duplicate image uploads">
+              <input type="checkbox" id="skipDuplicateUploadToggle" class="rounded border-[#D4D4D8] text-[#0A0A0A] focus:ring-0 w-3.5 h-3.5" />
+              <span>Auto-skip duplicates</span>
+            </label>
+            <button 
+              type="button" 
+              onclick="triggerMobileCameraOrModal()" 
+              class="h-9 flex items-center space-x-2 px-3.5 bg-white hover:bg-[#FAFAFA] active:bg-[#F4F4F5] text-[#0A0A0A] rounded-md text-xs font-medium border border-[#E4E4E7] shadow-sm transition-all"
+              title="Snap product with mobile camera or live viewfinder"
+            >
+              <i data-lucide="camera" class="w-3.5 h-3.5 text-[#E05A47]"></i>
+              <span>Camera</span>
+            </button>
+            <button 
+              type="button" 
+              onclick="openAiProductModal()" 
+              class="h-9 flex items-center space-x-2 px-3.5 bg-white hover:bg-[#FAFAFA] active:bg-[#F4F4F5] text-[#0A0A0A] rounded-md text-xs font-medium border border-[#E4E4E7] shadow-sm transition-all"
+            >
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+              <span>Generate with AI</span>
+            </button>
+            <button 
+              type="button" 
+              onclick="document.getElementById('fastUploadInput').click()" 
+              class="h-9 flex items-center space-x-2 px-4 bg-[#0A0A0A] hover:bg-[#18181B] active:bg-black text-white rounded-md text-xs font-medium transition-all shrink-0 border border-[#27272A]"
+            >
+              <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
+              <span>Browse Files</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Instant AI Pipeline Auto-Run Options -->
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3.5 mt-3.5 border-t border-[#E4E4E7] gap-2 text-xs">
-          <label class="flex items-center space-x-2.5 cursor-pointer select-none">
-            <input 
-              type="checkbox" 
-              id="autoMattingOnUploadToggle" 
-              checked 
-              onchange="localStorage.setItem('autoMattingOnUpload', this.checked)"
-              class="w-4 h-4 rounded border-[#E4E4E7] text-[#0A0A0A] focus:ring-0 cursor-pointer accent-[#0A0A0A]"
-            />
-            <span class="font-medium text-[#0A0A0A]">Auto-run AI Background Removal immediately on upload</span>
-            <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#FAFAFA] border border-[#E4E4E7] text-[#71717A] uppercase">BiRefNet</span>
-          </label>
-          <span class="text-[#71717A] text-[11px] font-mono">Generates transparent cutout automatically</span>
-        </div>
+        <!-- Instant AI Background Removal (Always Active, Hidden from UI) -->
+        <input type="checkbox" id="autoMattingOnUploadToggle" checked class="hidden" aria-hidden="true" style="display:none;" />
 
         <!-- Live Selected Images Preview Strip -->
         <div id="uploadPreviewStrip" class="hidden mt-5 pt-5 border-t border-[#E4E4E7]">
@@ -348,6 +690,45 @@
         <!-- Right: Product Grid & Controls -->
         <div class="lg:col-span-3 space-y-4">
           
+          <!-- Duplicate Detection Alert Banner -->
+          <div id="duplicateAlertBanner" class="hidden p-4 rounded-md border border-[#E05A47]/40 bg-[#FFF5F5] space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-md bg-[#E05A47] text-white flex items-center justify-center shrink-0">
+                  <i data-lucide="copy" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <div class="flex items-center space-x-2">
+                    <h4 class="font-editorial text-sm font-semibold tracking-tight text-[#0A0A0A]">Duplicate Product Images Detected</h4>
+                    <span id="duplicateTotalBadge" class="px-2 py-0.5 rounded-md text-[10px] font-mono tracking-wider bg-white text-[#E05A47] border border-[#E05A47]/30">0 DUPLICATES</span>
+                  </div>
+                  <p id="duplicateBannerSubtext" class="text-xs text-[#71717A] mt-0.5 font-sans">
+                    The system identified duplicate images across your catalog. You can review them side-by-side or delete redundant copies in 1 click.
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button 
+                  type="button" 
+                  onclick="openDuplicateCleanupModal()" 
+                  class="h-8 px-3 rounded-md bg-white hover:bg-[#FAFAFA] text-[#0A0A0A] font-medium text-xs border border-[#E4E4E7] flex items-center space-x-1.5 transition-all"
+                >
+                  <i data-lucide="eye" class="w-3.5 h-3.5 text-[#71717A]"></i>
+                  <span>Review & Delete</span>
+                </button>
+                <button 
+                  type="button" 
+                  id="bannerOneClickCleanupBtn"
+                  onclick="executeOneClickCleanup()" 
+                  class="h-8 px-3 rounded-md bg-[#E05A47] hover:bg-[#C94735] text-white font-medium text-xs flex items-center space-x-1.5 transition-all shadow-xs"
+                >
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5 text-white"></i>
+                  <span id="bannerOneClickCleanupText">Delete All Duplicates (1-Click)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Filter Controls Bar -->
           <div class="bg-white rounded-md border border-[#E4E4E7] p-3 flex flex-wrap items-center justify-between gap-3">
             
@@ -387,6 +768,16 @@
                 class="status-filter-btn h-7 px-2.5 rounded-md text-xs font-medium bg-white text-[#71717A] hover:text-[#0A0A0A] border border-[#E4E4E7] hover:border-[#A1A1AA] transition-all"
               >
                 Styled
+              </button>
+              <button 
+                onclick="filterByDuplicatesOnly()" 
+                id="status_duplicates" 
+                class="status-filter-btn h-7 px-2.5 rounded-md text-xs font-medium bg-white text-[#E05A47] hover:text-[#C94735] border border-[#E05A47]/40 hover:border-[#E05A47] transition-all flex items-center space-x-1"
+                title="Filter catalog to view only duplicate items"
+              >
+                <i data-lucide="copy" class="w-3 h-3 text-[#E05A47]"></i>
+                <span>Duplicates</span>
+                <span id="duplicatesFilterCountBadge" class="hidden ml-1 px-1 py-0.5 rounded text-[10px] bg-[#E05A47] text-white font-mono leading-none">0</span>
               </button>
             </div>
 
@@ -813,30 +1204,51 @@
   <!-- MODAL: CATALOG DUPLICATES REVIEW & 1-CLICK CLEANUP                        -->
   <!-- ========================================================================= -->
   <div id="duplicateCleanupModal" class="hidden fixed inset-0 z-50 bg-[#0A0A0A]/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-    <div class="bg-white rounded-md border border-[#E4E4E7] shadow-2xl max-w-3xl w-full my-auto overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="bg-white rounded-md border border-[#E4E4E7] shadow-2xl max-w-4xl w-full my-auto overflow-hidden flex flex-col max-h-[92vh]">
       <!-- Modal Header -->
-      <div class="p-5 border-b border-[#E4E4E7] flex items-center justify-between bg-[#FAFAFA]">
+      <div class="p-4 sm:p-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FAFAFA]">
         <div class="flex items-center space-x-3">
           <div class="w-8 h-8 rounded-md bg-[#0A0A0A] text-white flex items-center justify-center shrink-0">
             <i data-lucide="copy" class="w-4 h-4"></i>
           </div>
           <div>
             <div class="flex items-center space-x-2">
-              <h3 class="font-editorial text-base font-semibold tracking-tight text-[#0A0A0A]">Duplicate Catalog Items</h3>
+              <h3 class="font-editorial text-base font-semibold tracking-tight text-[#0A0A0A]">Duplicate Catalog Manager</h3>
               <span id="cleanupModalCountBadge" class="px-1.5 py-0.5 rounded-[3px] text-[10px] font-mono tracking-wider bg-white text-[#0A0A0A] border border-[#E4E4E7]">0 GROUPS</span>
             </div>
             <p class="text-xs text-[#71717A] font-sans mt-0.5">
-              Review side-by-side: The primary asset is preserved while redundant records are purged.
+              Side-by-side inspection: set primary keep assets, smart-merge multi-angle cutouts, or purge redundant entries.
             </p>
           </div>
         </div>
-        <button onclick="closeDuplicateCleanupModal()" class="w-7 h-7 flex items-center justify-center text-[#71717A] hover:text-[#0A0A0A] rounded hover:bg-white transition-colors">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
+        <div class="flex items-center space-x-2 self-end sm:self-center">
+          <button onclick="closeDuplicateCleanupModal()" class="w-7 h-7 flex items-center justify-center text-[#71717A] hover:text-[#0A0A0A] rounded hover:bg-white transition-colors">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Sensitivity & Stats Subheader Toolbar -->
+      <div class="px-4 py-2.5 bg-white border-b border-[#E4E4E7] flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex items-center space-x-2">
+          <span class="font-mono text-[11px] text-[#71717A] uppercase">Sensitivity:</span>
+          <div class="inline-flex rounded-md border border-[#E4E4E7] p-0.5 bg-[#FAFAFA]">
+            <button type="button" id="dupSens_strict" onclick="setDuplicateSensitivity('strict')" class="px-2 py-1 rounded text-[11px] font-mono transition-colors text-[#71717A] hover:text-[#0A0A0A]">Strict (95%+ / MD5)</button>
+            <button type="button" id="dupSens_standard" onclick="setDuplicateSensitivity('standard')" class="px-2 py-1 rounded text-[11px] font-mono transition-colors bg-[#0A0A0A] text-white">Standard (88%+)</button>
+            <button type="button" id="dupSens_relaxed" onclick="setDuplicateSensitivity('relaxed')" class="px-2 py-1 rounded text-[11px] font-mono transition-colors text-[#71717A] hover:text-[#0A0A0A]">Broad (75%+)</button>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3 text-[11px] font-mono text-[#71717A]">
+          <span id="dupModalStorageSaved" class="hidden sm:inline">Storage Reclaimable: <strong class="text-[#0A0A0A] font-medium" id="dupReclaimableMb">0 MB</strong></span>
+          <button type="button" onclick="checkCatalogDuplicates(activeDuplicateSensitivity)" class="hover:text-[#0A0A0A] flex items-center space-x-1 cursor-pointer">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            <span>Rescan</span>
+          </button>
+        </div>
       </div>
 
       <!-- Modal Body (List of duplicate groups) -->
-      <div id="duplicateGroupsContainer" class="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
+      <div id="duplicateGroupsContainer" class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
         <!-- Injected via JavaScript -->
       </div>
 
@@ -844,9 +1256,9 @@
       <div class="bg-[#FAFAFA] p-3.5 sm:p-4 border-t border-[#E4E4E7] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
         <div class="text-xs text-[#71717A] flex items-center space-x-1.5 font-mono text-[11px]">
           <i data-lucide="shield-check" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
-          <span>Primary assets are strictly safeguarded.</span>
+          <span>Primary assets strictly preserved. Cutouts & 3D scenes consolidated on merge.</span>
         </div>
-        <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+        <div class="flex items-center space-x-2 w-full sm:w-auto justify-end flex-wrap">
           <button 
             type="button" 
             onclick="closeDuplicateCleanupModal()"
@@ -856,11 +1268,21 @@
           </button>
           <button 
             type="button" 
+            id="modalSmartMergeAllBtn"
+            onclick="executeSmartMergeAll()"
+            class="h-8 px-3 rounded-md border border-[#0A0A0A] bg-white hover:bg-[#0A0A0A] hover:text-white text-[#0A0A0A] font-medium text-xs transition-all flex items-center space-x-1.5"
+            title="Consolidate 3D angles & cutouts into primaries, then safely remove redundant copies"
+          >
+            <i data-lucide="git-merge" class="w-3.5 h-3.5"></i>
+            <span id="modalSmartMergeAllText">Smart Merge All</span>
+          </button>
+          <button 
+            type="button" 
             id="modalOneClickCleanupBtn"
             onclick="executeOneClickCleanup()"
-            class="h-8 px-4 rounded-md bg-[#0A0A0A] hover:bg-[#18181B] text-white font-medium text-xs border border-[#27272A] transition-all flex items-center justify-center space-x-1.5"
+            class="h-8 px-3.5 rounded-md bg-[#E05A47] hover:bg-[#C94735] text-white font-medium text-xs transition-all flex items-center justify-center space-x-1.5 shadow-xs"
           >
-            <i data-lucide="trash-2" class="w-3 h-3"></i>
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
             <span id="modalOneClickCleanupText">Purge Duplicates</span>
           </button>
         </div>
@@ -1037,6 +1459,7 @@
             <option value="tag">Tag</option>
             <option value="package">Package</option>
             <option value="sparkles">Sparkles</option>
+            <option value="footprints">Footwear</option>
             <option value="shirt">Apparel</option>
             <option value="watch">Horology / Jewelry</option>
             <option value="smartphone">Electronics</option>
@@ -1397,6 +1820,120 @@
                 </div>
               </div>
 
+              <!-- Artificial Shadow Generation Suite -->
+              <div class="bg-[#FAFAFA] rounded-md p-3.5 border border-[#E4E4E7] space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-1.5">
+                    <i data-lucide="sun-medium" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+                    <span class="text-[11px] font-mono uppercase tracking-wider text-[#0A0A0A] font-medium">Artificial Shadow Studio</span>
+                  </div>
+                  <button type="button" onclick="applyStudioShadowOnly()" class="text-[10px] font-mono text-[#0A0A0A] bg-white border border-[#E4E4E7] hover:border-[#0A0A0A] px-2 py-0.5 rounded-[3px] transition-all flex items-center space-x-1" title="Generate shadow standalone on cutout">
+                    <i data-lucide="play" class="w-2.5 h-2.5"></i>
+                    <span>Apply Shadow</span>
+                  </button>
+                </div>
+
+                <!-- Shadow Type Checkboxes -->
+                <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                  <label class="flex items-center space-x-2 p-2 rounded bg-white border border-[#E4E4E7] cursor-pointer hover:border-[#0A0A0A] transition-all">
+                    <input type="checkbox" id="shadowContactToggle" checked class="accent-[#0A0A0A] rounded w-3.5 h-3.5" />
+                    <div>
+                      <div class="text-[11px] font-medium text-[#0A0A0A]">Contact Shadow</div>
+                      <div class="text-[9px] text-[#71717A]">Base Ambient Occlusion</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center space-x-2 p-2 rounded bg-white border border-[#E4E4E7] cursor-pointer hover:border-[#0A0A0A] transition-all">
+                    <input type="checkbox" id="shadowDropToggle" checked class="accent-[#0A0A0A] rounded w-3.5 h-3.5" />
+                    <div>
+                      <div class="text-[11px] font-medium text-[#0A0A0A]">Drop / Cast Shadow</div>
+                      <div class="text-[9px] text-[#71717A]">Directional Lighting</div>
+                    </div>
+                  </label>
+                </div>
+
+                <!-- Light Direction Slider (-180 to 180 deg) with live badge -->
+                <div class="space-y-1.5 text-xs font-mono">
+                  <div class="flex justify-between items-center text-[11px]">
+                    <span class="text-[#71717A] flex items-center space-x-1">
+                      <i data-lucide="compass" class="w-3 h-3 text-[#0A0A0A]"></i>
+                      <span>Light Direction:</span>
+                    </span>
+                    <span id="shadowAngleBadge" class="text-[#0A0A0A] font-semibold bg-white px-1.5 py-0.5 rounded border border-[#E4E4E7]">Top-Left (-60°)</span>
+                  </div>
+                  <input type="range" id="shadowAngleSlider" min="-180" max="180" step="5" value="-60" oninput="updateShadowAngleDisplay(this.value)" class="w-full accent-[#0A0A0A] h-1.5 bg-[#E4E4E7] rounded-sm" />
+                  <div class="flex justify-between text-[9px] text-[#A1A1AA]">
+                    <span>Left (-180°)</span>
+                    <span>Top (-90°)</span>
+                    <span>Top-Left (-60°)</span>
+                    <span>Right (0°)</span>
+                    <span>Bottom (90°)</span>
+                  </div>
+                </div>
+
+                <!-- Shadow Distance & Blur Sliders -->
+                <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                  <div class="space-y-1">
+                    <div class="flex justify-between text-[10px]">
+                      <span class="text-[#71717A]">Offset:</span>
+                      <span id="val_shadowDist" class="text-[#0A0A0A]">25px</span>
+                    </div>
+                    <input type="range" id="shadowDistanceSlider" min="0" max="70" step="2" value="25" oninput="document.getElementById('val_shadowDist').innerText=this.value+'px'" class="w-full accent-[#0A0A0A] h-1.5 bg-[#E4E4E7] rounded-sm" />
+                  </div>
+                  <div class="space-y-1">
+                    <div class="flex justify-between text-[10px]">
+                      <span class="text-[#71717A]">Softness / Blur:</span>
+                      <span id="val_shadowBlur" class="text-[#0A0A0A]">16px</span>
+                    </div>
+                    <input type="range" id="shadowBlurSlider" min="2" max="40" step="1" value="16" oninput="document.getElementById('val_shadowBlur').innerText=this.value+'px'" class="w-full accent-[#0A0A0A] h-1.5 bg-[#E4E4E7] rounded-sm" />
+                  </div>
+                </div>
+
+                <!-- Shadow Intensity -->
+                <div class="space-y-1 text-xs font-mono">
+                  <div class="flex justify-between text-[10px]">
+                    <span class="text-[#71717A]">Shadow Density:</span>
+                    <span id="val_shadowInt" class="text-[#0A0A0A]">60%</span>
+                  </div>
+                  <input type="range" id="shadowIntensitySlider" min="0.1" max="1.0" step="0.05" value="0.6" oninput="document.getElementById('val_shadowInt').innerText=Math.round(this.value*100)+'%'" class="w-full accent-[#0A0A0A] h-1.5 bg-[#E4E4E7] rounded-sm" />
+                </div>
+              </div>
+
+              <!-- Color Tone Match Suite -->
+              <div class="bg-[#FAFAFA] rounded-md p-3.5 border border-[#E4E4E7] space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-1.5">
+                    <i data-lucide="palette" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+                    <span class="text-[11px] font-mono uppercase tracking-wider text-[#0A0A0A] font-medium">Atmospheric Color Match</span>
+                  </div>
+                  <label class="flex items-center space-x-1.5 text-xs cursor-pointer">
+                    <input type="checkbox" id="colorToneMatchToggle" checked class="accent-[#0A0A0A] rounded w-3.5 h-3.5" />
+                    <span class="font-mono text-[11px] text-[#0A0A0A] font-medium">Auto-Adjust</span>
+                  </label>
+                </div>
+                <p class="text-[10px] text-[#71717A] font-sans">
+                  Harmonizes product white balance and lighting temperature to organically match scene environment.
+                </p>
+
+                <div class="space-y-1 text-xs font-mono">
+                  <div class="flex justify-between text-[10px]">
+                    <span class="text-[#71717A]">Atmosphere Blend:</span>
+                    <span id="val_colorTone" class="text-[#0A0A0A]">70%</span>
+                  </div>
+                  <input type="range" id="colorToneIntensitySlider" min="0.1" max="1.0" step="0.05" value="0.70" oninput="document.getElementById('val_colorTone').innerText=Math.round(this.value*100)+'%'" class="w-full accent-[#0A0A0A] h-1.5 bg-[#E4E4E7] rounded-sm" />
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <label class="flex items-center space-x-1.5 cursor-pointer text-[10px] font-mono text-[#71717A] hover:text-[#0A0A0A]">
+                    <input type="checkbox" id="colorToneRimBleedToggle" checked class="accent-[#0A0A0A] rounded w-3 h-3" />
+                    <span>Optical Edge Rim Bleed</span>
+                  </label>
+                  <button type="button" onclick="applyStudioToneMatchOnly()" class="text-[10px] font-mono text-[#0A0A0A] bg-white border border-[#E4E4E7] hover:border-[#0A0A0A] px-2 py-0.5 rounded-[3px] transition-all flex items-center space-x-1" title="Test color tone match standalone">
+                    <i data-lucide="wand-2" class="w-2.5 h-2.5"></i>
+                    <span>Match Tone</span>
+                  </button>
+                </div>
+              </div>
+
               <button 
                 id="studioRenderSceneBtn"
                 onclick="runStudioStylize()"
@@ -1408,7 +1945,7 @@
             </div>
 
             <!-- Right: Render Preview Output -->
-            <div class="space-y-1.5 text-center">
+            <div class="space-y-2 text-center">
               <span class="text-[10px] font-mono uppercase tracking-wider text-[#71717A]">Lookbook Plate Preview</span>
               <div class="w-full aspect-square rounded-md bg-[#FAFAFA] border border-[#E4E4E7] flex items-center justify-center p-3 overflow-hidden relative">
                 <img id="studioStylizeResultImg" src="" class="hidden max-h-full max-w-full object-contain filter drop-shadow-sm" />
@@ -1416,6 +1953,25 @@
                   <i data-lucide="image" class="w-8 h-8 mx-auto mb-2 opacity-20 text-[#0A0A0A]"></i>
                   <p class="text-xs font-sans">Click "Render Plate" to compute lighting, surfaces & reflections.</p>
                 </div>
+              </div>
+              <div id="studioStylizeActions" class="hidden flex items-center justify-center gap-2 pt-1">
+                <button 
+                  type="button" 
+                  onclick="downloadCurrentStyledPlate()" 
+                  class="h-8 px-3.5 rounded-md bg-[#0A0A0A] hover:bg-[#18181B] text-white font-mono text-xs flex items-center space-x-1.5 border border-[#27272A] transition-all shadow-sm"
+                >
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                  <span>Download Styled Plate</span>
+                </button>
+                <a 
+                  id="studioStylizeOpenLink" 
+                  href="#" 
+                  target="_blank" 
+                  class="h-8 px-2.5 rounded-md border border-[#E4E4E7] bg-white hover:bg-[#FAFAFA] text-[#0A0A0A] font-mono text-xs flex items-center space-x-1 transition-all"
+                >
+                  <i data-lucide="external-link" class="w-3 h-3"></i>
+                  <span>Full Res</span>
+                </a>
               </div>
             </div>
 
@@ -1483,6 +2039,37 @@
               </div>
             </div>
 
+            <!-- Background Canvas Source -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-[11px] font-mono uppercase tracking-wider text-[#71717A]">Background Styling Source</label>
+                <span id="exportBgActiveBadge" class="text-[10px] font-mono text-[#0A0A0A] bg-[#FAFAFA] border border-[#E4E4E7] px-1.5 py-0.5 rounded-[3px]">Applied Style</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2">
+                <label class="flex flex-col p-2.5 rounded-md border border-[#0A0A0A] bg-white cursor-pointer transition-all export-bg-option" id="exportBgOpt_styled">
+                  <div class="flex items-center space-x-1.5">
+                    <input type="radio" name="exportBgSource" value="styled" checked onchange="onExportBgSourceChange('styled')" class="accent-[#0A0A0A]" />
+                    <span class="font-mono text-xs font-medium text-[#0A0A0A]">Applied Style</span>
+                  </div>
+                  <span class="text-[10px] text-[#71717A] mt-1 line-clamp-1" id="exportBgStyledLabel">Scene Preset</span>
+                </label>
+                <label class="flex flex-col p-2.5 rounded-md border border-[#E4E4E7] bg-[#FAFAFA] cursor-pointer transition-all export-bg-option" id="exportBgOpt_white">
+                  <div class="flex items-center space-x-1.5">
+                    <input type="radio" name="exportBgSource" value="white" onchange="onExportBgSourceChange('white')" class="accent-[#0A0A0A]" />
+                    <span class="font-mono text-xs font-medium text-[#0A0A0A]">Studio White</span>
+                  </div>
+                  <span class="text-[10px] text-[#71717A] mt-1">#FFFFFF Pure</span>
+                </label>
+                <label class="flex flex-col p-2.5 rounded-md border border-[#E4E4E7] bg-[#FAFAFA] cursor-pointer transition-all export-bg-option" id="exportBgOpt_transparent">
+                  <div class="flex items-center space-x-1.5">
+                    <input type="radio" name="exportBgSource" value="transparent" onchange="onExportBgSourceChange('transparent')" class="accent-[#0A0A0A]" />
+                    <span class="font-mono text-xs font-medium text-[#0A0A0A]">Cutout Alpha</span>
+                  </div>
+                  <span class="text-[10px] text-[#71717A] mt-1">Transparent PNG</span>
+                </label>
+              </div>
+            </div>
+
             <!-- File Format Selector -->
             <div>
               <label class="block text-[11px] font-mono uppercase tracking-wider text-[#71717A] mb-1.5">File Container</label>
@@ -1539,6 +2126,55 @@
               </select>
             </div>
 
+            <!-- AI Upscaling Pass (2x / 4x Label & Text Preserving) -->
+            <div class="bg-[#FAFAFA] rounded-md p-3.5 border border-[#E4E4E7] space-y-2.5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-1.5">
+                  <i data-lucide="zap" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+                  <label class="text-[11px] font-mono uppercase tracking-wider text-[#0A0A0A] font-medium">AI Upscaling Pass</label>
+                </div>
+                <span class="text-[10px] font-mono text-[#E05A47] bg-white border border-[#E4E4E7] px-1.5 py-0.5 rounded-[3px]">Text-Preserving</span>
+              </div>
+              <p class="text-[10px] text-[#71717A] font-sans">
+                Neural edge-guided resolution enhancer preserving crisp typography, ingredients, logos, and barcodes on product packaging.
+              </p>
+
+              <div class="grid grid-cols-3 gap-2">
+                <label class="flex items-center space-x-2 p-2 rounded-md border border-[#0A0A0A] bg-white cursor-pointer transition-all export-upscale-opt">
+                  <input type="radio" name="exportUpscale" value="1" checked class="accent-[#0A0A0A]" />
+                  <div>
+                    <div class="text-[11px] font-mono font-medium text-[#0A0A0A]">1x Native</div>
+                    <div class="text-[9px] text-[#71717A]">Standard</div>
+                  </div>
+                </label>
+                <label class="flex items-center space-x-2 p-2 rounded-md border border-[#E4E4E7] bg-white cursor-pointer hover:border-[#0A0A0A] transition-all export-upscale-opt">
+                  <input type="radio" name="exportUpscale" value="2" class="accent-[#0A0A0A]" />
+                  <div>
+                    <div class="text-[11px] font-mono font-medium text-[#0A0A0A]">2x Ultra-Sharp</div>
+                    <div class="text-[9px] text-[#71717A]">4000px High-Res</div>
+                  </div>
+                </label>
+                <label class="flex items-center space-x-2 p-2 rounded-md border border-[#E4E4E7] bg-white cursor-pointer hover:border-[#0A0A0A] transition-all export-upscale-opt">
+                  <input type="radio" name="exportUpscale" value="4" class="accent-[#0A0A0A]" />
+                  <div>
+                    <div class="text-[11px] font-mono font-medium text-[#0A0A0A]">4x Master</div>
+                    <div class="text-[9px] text-[#71717A]">8000px Print</div>
+                  </div>
+                </label>
+              </div>
+
+              <div class="flex items-center justify-between pt-1">
+                <label class="flex items-center space-x-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" id="exportPreserveTextToggle" checked class="accent-[#0A0A0A] rounded w-3.5 h-3.5" />
+                  <span class="font-mono text-[10px] text-[#0A0A0A]">Preserve Typography & Label Sharpness</span>
+                </label>
+                <button type="button" onclick="runStandaloneUpscaleFromExport()" class="text-[10px] font-mono text-[#0A0A0A] bg-white border border-[#E4E4E7] hover:border-[#0A0A0A] px-2 py-0.5 rounded-[3px] transition-all flex items-center space-x-1" title="Upscale immediately without export format wrapping">
+                  <i data-lucide="sparkles" class="w-2.5 h-2.5"></i>
+                  <span>Quick Upscale</span>
+                </button>
+              </div>
+            </div>
+
             <button 
               id="executeExportBtn"
               onclick="executeExportDownload()"
@@ -1555,13 +2191,994 @@
     </div>
   </div>
 
+  <!-- ========================================================================= -->
+  <!-- EDITORIAL LUXURY GLITCH PROGRESS BAR HUD                                  -->
+  <!-- ========================================================================= -->
+  <div id="glitchProgressHUD" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-[9990] w-[92%] max-w-xl select-none pointer-events-auto transition-all duration-300">
+    <!-- Top Editorial Hairline Accent with Glitch Slice -->
+    <div class="luxury-glitch-rail h-[2px] w-full rounded-t-md overflow-hidden"></div>
+
+    <!-- HUD Card Body -->
+    <div class="luxury-hud-body relative bg-white/95 backdrop-blur-xl border border-[#E4E4E7] rounded-b-md p-4 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.03)] overflow-hidden">
+      <!-- Editorial Grain & Micro Scanline FX -->
+      <div class="luxury-scanlines pointer-events-none absolute inset-0"></div>
+      
+      <!-- Top Status Row -->
+      <div class="relative z-10 flex items-center justify-between mb-2.5">
+        <div class="flex items-center space-x-3">
+          <div class="w-7 h-7 rounded-md bg-[#0A0A0A] text-white flex items-center justify-center shrink-0 shadow-sm">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-zinc-200"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span id="glitchProgressLabel" class="font-editorial text-sm font-semibold tracking-tight text-[#0A0A0A] luxury-glitch-text" data-text="Studio Engine Processing...">Studio Engine Processing...</span>
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#0A0A0A] animate-ping"></span>
+            </div>
+            <div class="text-[10px] font-mono uppercase tracking-widest text-[#71717A] mt-0.5" id="glitchProgressSub">STUDIO LOOKBOOK ENGINE • COMMERCIAL PIPELINE</div>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <span id="glitchProgressPercent" class="font-mono text-xs font-semibold tracking-wider text-[#0A0A0A] bg-[#FAFAFA] px-2 py-0.5 rounded border border-[#E4E4E7] luxury-glitch-num">[ 0% ]</span>
+          <button onclick="window.GlitchProgress.dismiss()" title="Dismiss" class="text-[#71717A] hover:text-[#0A0A0A] transition-colors p-1 rounded hover:bg-[#F4F4F5]">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Progress Track -->
+      <div class="relative z-10 w-full h-1.5 bg-[#F4F4F5] rounded-full overflow-hidden border border-[#E4E4E7]">
+        <div id="glitchProgressBarFill" class="luxury-bar-fill h-full rounded-full transition-all duration-150 ease-out relative" style="width: 0%;">
+          <div class="luxury-bar-spark"></div>
+        </div>
+      </div>
+
+      <!-- Telemetry Bottom Row: Clean Editorial Meta -->
+      <div class="relative z-10 flex items-center justify-between mt-2.5 pt-2 border-t border-[#F4F4F5] text-[10px] font-mono text-[#71717A]">
+        <span class="flex items-center space-x-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#0A0A0A] inline-block"></span>
+          <span class="tracking-wider">STATUS: EXECUTING</span>
+        </span>
+        <span id="glitchProgressEta" class="tracking-wider">ACCELERATED AI PIPELINE</span>
+        <span class="text-[#0A0A0A] font-medium tracking-wider">PRO LOOKBOOK</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- AI PRODUCT STUDIO GENERATOR MODAL                                         -->
+  <!-- ========================================================================= -->
+  <div id="aiProductModal" class="hidden fixed inset-0 z-50 bg-[#0A0A0A]/75 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg border border-[#E4E4E7] shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-[#E4E4E7] flex items-center justify-between bg-[#FAFAFA]">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-md bg-[#0A0A0A] text-white flex items-center justify-center shrink-0 shadow-sm">
+            <i data-lucide="sparkles" class="w-4 h-4 text-zinc-100"></i>
+          </div>
+          <div>
+            <h3 class="font-editorial text-base font-semibold text-[#0A0A0A] tracking-tight">AI Product Generation Studio</h3>
+            <p class="text-[11px] text-[#71717A] font-sans">Synthesize commercial catalog photography from text descriptions</p>
+          </div>
+        </div>
+        <button onclick="closeAiProductModal()" class="text-[#71717A] hover:text-[#0A0A0A] p-1.5 rounded-md hover:bg-white transition-all">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Modal Form Body -->
+      <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <!-- Prompt Input Header with Prompt Enhancer Button -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-semibold text-[#0A0A0A]">
+              Product Description Prompt <span class="text-rose-500">*</span>
+            </label>
+            <button 
+              type="button" 
+              id="btnEnhanceAiPrompt" 
+              onclick="enhanceAiPrompt()"
+              class="inline-flex items-center space-x-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md bg-[#0A0A0A] hover:bg-[#27272A] active:scale-95 text-white transition-all shadow-sm group cursor-pointer"
+              title="Analyse and extend prompt automatically with commercial studio details for 100% accurate AI generation"
+            >
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-300 group-hover:rotate-12 transition-transform"></i>
+              <span id="btnEnhanceAiPromptText">Prompt Enhancer</span>
+              <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-white/20 text-white ml-0.5 font-semibold">AI</span>
+            </button>
+          </div>
+          <div class="relative">
+            <textarea 
+              id="aiProductPrompt" 
+              rows="3" 
+              placeholder="Describe the product of your choice (e.g. 'Italian penny loafers in cognac leather', 'Matte black gaming headphones', 'Stanley tumbler cream')..."
+              class="w-full px-3.5 py-2.5 text-xs rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] hover:bg-white focus:bg-white focus:outline-none focus:border-[#0A0A0A] text-[#0A0A0A] transition-all placeholder-[#A1A1AA] resize-none leading-relaxed"
+            ></textarea>
+            
+            <!-- Quick Undo / Status Bar (Hidden by default, shown when prompt is enhanced) -->
+            <div id="aiPromptEnhanceNotice" class="hidden mt-1.5 p-2 rounded-lg bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-between text-xs text-[#0A0A0A] animate-in fade-in duration-200">
+              <div class="flex items-center space-x-2 overflow-hidden">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
+                <span id="aiPromptEnhanceDomain" class="px-1.5 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider rounded bg-[#0A0A0A] text-white shrink-0">COMMERCIAL</span>
+                <span class="text-[11px] text-[#52525B] truncate font-medium" id="aiPromptEnhanceSummary">Prompt enhanced with studio specifications</span>
+              </div>
+              <button 
+                type="button" 
+                onclick="revertAiPrompt()" 
+                class="shrink-0 ml-2 text-[11px] font-medium text-[#71717A] hover:text-[#0A0A0A] underline hover:no-underline transition-colors cursor-pointer"
+                title="Restore your original un-enhanced prompt"
+              >
+                Undo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prompt Inspiration Chips for Any Commercial Shop Type -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-mono text-[#71717A] uppercase tracking-wider">Commercial Shop Ingest Inspiration</span>
+            <span class="text-[10px] text-[#A1A1AA] font-mono">Any Retail Category</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" onclick="setAiPrompt('Premium combed ringspun cotton crewneck t-shirt in washed obsidian black, clean flat-lay studio', 'apparel')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              👕 Crewneck T-Shirt (Apparel)
+            </button>
+            <button type="button" onclick="setAiPrompt('18k white gold round brilliant cut solitaire diamond engagement ring with micro-pave band', 'jewelry')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              💎 Diamond Ring (Jewelry)
+            </button>
+            <button type="button" onclick="setAiPrompt('Scandinavian minimalist bouclé 3-seater sofa with natural walnut wood tapered legs', 'furniture')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              🛋️ Bouclé Sofa (Furniture)
+            </button>
+            <button type="button" onclick="setAiPrompt('Professional 8-inch Japanese Damascus chef knife with hammered tsuchime finish and pakkawood handle', 'kitchen')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              🔪 Damascus Chef Knife (Kitchen)
+            </button>
+            <button type="button" onclick="setAiPrompt('Nike Air Jordan high-top basketball sneaker in pine green and crisp white leather with black logo', 'footwear')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              🏀 Nike Air Jordan (Footwear)
+            </button>
+            <button type="button" onclick="setAiPrompt('Over-ear studio wireless noise-cancelling headphones in matte black with brushed copper accents', 'electronics')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              🎧 Studio Headphones (Tech)
+            </button>
+            <button type="button" onclick="setAiPrompt('Professional full-frame DSLR camera with 50mm f/1.4 prime lens attached, matte black magnesium body', 'electronics')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              📷 DSLR Camera (Optics)
+            </button>
+            <button type="button" onclick="setAiPrompt('Swiss luxury chronograph automatic watch with deep sunburst navy blue dial and stainless steel bracelet', 'accessories')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              ⌚ Swiss Chronograph (Watches)
+            </button>
+            <button type="button" onclick="setAiPrompt('ASUS ROG tactical gaming backpack with water-resistant ballistic nylon and red accents', 'bags')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              🎒 ROG Gaming Backpack (Bags)
+            </button>
+            <button type="button" onclick="setAiPrompt('Heavy-duty 20V cordless brushless power drill with 1/2-inch keyless all-metal chuck', 'tools')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              ⚡ 20V Cordless Drill (Tools)
+            </button>
+            <button type="button" onclick="setAiPrompt('Ultra-pure vanilla whey isolate protein powder in a matte black 2.5lb commercial tub', 'health')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              💊 Whey Protein Powder (Health)
+            </button>
+            <button type="button" onclick="setAiPrompt('Luxury designer sunglasses with black acetate frames and dark gradient lenses', 'accessories')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              🕶️ Designer Sunglasses (Eyewear)
+            </button>
+            <button type="button" onclick="setAiPrompt('Minimalist amber glass luxury perfume bottle with magnetic matte cap and gold label', 'cosmetics')" class="text-[11px] px-2.5 py-1 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#0A0A0A] border border-[#E4E4E7] transition-all">
+              🌿 Amber Perfume (Cosmetics)
+            </button>
+          </div>
+        </div>
+
+        <!-- Style Preset Selector -->
+        <div class="space-y-1.5">
+          <label class="block text-xs font-semibold text-[#0A0A0A]">Commercial Aesthetic Preset</label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <label class="cursor-pointer border border-[#E4E4E7] rounded-lg p-2.5 flex flex-col justify-between hover:border-[#0A0A0A] bg-[#FAFAFA] has-[:checked]:border-[#0A0A0A] has-[:checked]:bg-white transition-all">
+              <input type="radio" name="aiStylePreset" value="studio" checked class="hidden" />
+              <div class="font-medium text-xs text-[#0A0A0A]">Clean Studio</div>
+              <div class="text-[10px] text-[#71717A] mt-0.5">Amazon/Shopify standard</div>
+            </label>
+            <label class="cursor-pointer border border-[#E4E4E7] rounded-lg p-2.5 flex flex-col justify-between hover:border-[#0A0A0A] bg-[#FAFAFA] has-[:checked]:border-[#0A0A0A] has-[:checked]:bg-white transition-all">
+              <input type="radio" name="aiStylePreset" value="editorial" class="hidden" />
+              <div class="font-medium text-xs text-[#0A0A0A]">Editorial Vogue</div>
+              <div class="text-[10px] text-[#71717A] mt-0.5">Luxury campaign lighting</div>
+            </label>
+            <label class="cursor-pointer border border-[#E4E4E7] rounded-lg p-2.5 flex flex-col justify-between hover:border-[#0A0A0A] bg-[#FAFAFA] has-[:checked]:border-[#0A0A0A] has-[:checked]:bg-white transition-all">
+              <input type="radio" name="aiStylePreset" value="white_hero" class="hidden" />
+              <div class="font-medium text-xs text-[#0A0A0A]">White Hero</div>
+              <div class="text-[10px] text-[#71717A] mt-0.5">Pure white infinity</div>
+            </label>
+            <label class="cursor-pointer border border-[#E4E4E7] rounded-lg p-2.5 flex flex-col justify-between hover:border-[#0A0A0A] bg-[#FAFAFA] has-[:checked]:border-[#0A0A0A] has-[:checked]:bg-white transition-all">
+              <input type="radio" name="aiStylePreset" value="cyber" class="hidden" />
+              <div class="font-medium text-xs text-[#0A0A0A]">Cyberpunk Neon</div>
+              <div class="text-[10px] text-[#71717A] mt-0.5">Noir contrast rim light</div>
+            </label>
+            <label class="cursor-pointer border border-[#E4E4E7] rounded-lg p-2.5 flex flex-col justify-between hover:border-[#0A0A0A] bg-[#FAFAFA] has-[:checked]:border-[#0A0A0A] has-[:checked]:bg-white transition-all">
+              <input type="radio" name="aiStylePreset" value="minimal" class="hidden" />
+              <div class="font-medium text-xs text-[#0A0A0A]">Minimalist Oak</div>
+              <div class="text-[10px] text-[#71717A] mt-0.5">Warm daylight tones</div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Product Name & Category override -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="block text-xs font-semibold text-[#0A0A0A]">Custom Product Title (Optional)</label>
+            <input 
+              type="text" 
+              id="aiProductName" 
+              placeholder="Auto-extracted from prompt"
+              class="w-full px-3 py-2 text-xs rounded-md border border-[#E4E4E7] bg-[#FAFAFA] hover:bg-white focus:bg-white focus:outline-none focus:border-[#0A0A0A] text-[#0A0A0A]"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="block text-xs font-semibold text-[#0A0A0A]">Target Category</label>
+            <select 
+              id="aiProductCategory"
+              class="w-full px-3 py-2 text-xs rounded-md border border-[#E4E4E7] bg-[#FAFAFA] hover:bg-white focus:bg-white focus:outline-none focus:border-[#0A0A0A] text-[#0A0A0A]"
+            >
+              <option value="">Auto-Detect from Prompt</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Automatic Matting Badge Info -->
+        <div class="p-3 bg-[#FAFAFA] border border-[#E4E4E7] rounded-lg flex items-center space-x-3 text-xs text-[#71717A]">
+          <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+          <span>BiRefNet transparent cutout will be generated automatically and saved directly into your user account.</span>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-4 border-t border-[#E4E4E7] bg-[#FAFAFA] flex items-center justify-end space-x-3">
+        <button 
+          type="button" 
+          onclick="closeAiProductModal()" 
+          class="h-9 px-4 rounded-md border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#0A0A0A] transition-all"
+        >
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          id="btnSubmitAiGenerate"
+          onclick="submitAiProductGeneration()" 
+          class="h-9 px-5 rounded-md bg-[#0A0A0A] hover:bg-[#18181B] active:bg-black text-white text-xs font-medium border border-[#27272A] shadow-sm flex items-center space-x-2 transition-all"
+        >
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-zinc-100"></i>
+          <span>Generate & Ingest Product</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Toast Notification Container (Fixed Bottom-Right) -->
-  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none max-w-sm w-full"></div>
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-[10001] flex flex-col space-y-2 pointer-events-none max-w-sm w-full"></div>
 
   <!-- ========================================================================= -->
   <!-- JAVASCRIPT APP LOGIC                                                      -->
   <!-- ========================================================================= -->
   <script>
+    // Universal String Escaper for HTML Attributes
+    function escapeQuotes(str) {
+      return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    // =========================================================================
+    // AUTH SYSTEM — JWT Token Management & API Wrapper
+    // =========================================================================
+    const AUTH_TOKEN_KEY = 'studio_auth_token';
+    const AUTH_USER_KEY  = 'studio_auth_user';
+
+    function getAuthToken() {
+      return localStorage.getItem(AUTH_TOKEN_KEY);
+    }
+
+    function setAuthSession(token, user) {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    }
+
+    function clearAuthSession() {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
+    }
+
+    function getStoredUser() {
+      try { return JSON.parse(localStorage.getItem(AUTH_USER_KEY) || 'null'); } catch { return null; }
+    }
+
+    function getAuthUser() {
+      return getStoredUser();
+    }
+
+    // =========================================================================
+    // CYBER-LUXURY GLITCH PROGRESS BAR CONTROLLER
+    // =========================================================================
+    const GlitchProgress = {
+      active: false,
+      timer: null,
+      currentPct: 0,
+      targetPct: 0,
+      scrambleTimer: null,
+      
+      hud: null,
+      body: null,
+      bar: null,
+      labelEl: null,
+      subEl: null,
+      percentEl: null,
+      
+      init() {
+        if (!this.hud) this.hud = document.getElementById('glitchProgressHUD');
+        if (!this.body) this.body = this.hud?.querySelector('.luxury-hud-body') || this.hud?.querySelector('.glitch-hud-body');
+        if (!this.bar) this.bar = document.getElementById('glitchProgressBarFill');
+        if (!this.labelEl) this.labelEl = document.getElementById('glitchProgressLabel');
+        if (!this.subEl) this.subEl = document.getElementById('glitchProgressSub');
+        if (!this.percentEl) this.percentEl = document.getElementById('glitchProgressPercent');
+      },
+
+      scrambleText(el, targetText) {
+        if (!el) return;
+        const chars = '!<>-_\\/[]{}—=+*^?#01';
+        const original = targetText;
+        let iteration = 0;
+        clearInterval(this.scrambleTimer);
+        
+        this.scrambleTimer = setInterval(() => {
+          el.innerText = original.split('').map((letter, index) => {
+            if (index < iteration) return original[index];
+            return chars[Math.floor(Math.random() * chars.length)];
+          }).join('');
+
+          if (iteration >= original.length) {
+            clearInterval(this.scrambleTimer);
+            el.innerText = original;
+          }
+          iteration += 1 / 2;
+        }, 25);
+      },
+
+      triggerGlitchBurst() {
+        this.init();
+        if (!this.body) return;
+        this.body.classList.add('glitching');
+        this.labelEl?.classList.add('active-glitch');
+        setTimeout(() => {
+          this.body?.classList.remove('glitching');
+          this.labelEl?.classList.remove('active-glitch');
+        }, 350);
+      },
+
+      start(label = "Studio Engine Processing...", estDurationMs = 3500, subLabel = "STUDIO LOOKBOOK ENGINE • COMMERCIAL PIPELINE") {
+        this.init();
+        if (!this.hud) return;
+        
+        clearInterval(this.timer);
+        this.active = true;
+        this.currentPct = 6;
+        this.targetPct = 88;
+        
+        this.hud.classList.remove('hidden');
+        this.scrambleText(this.labelEl, label);
+        if (this.subEl) this.subEl.innerText = subLabel;
+        this.triggerGlitchBurst();
+        this.updateUI();
+
+        const intervalTime = 100;
+        const step = (this.targetPct - this.currentPct) / (estDurationMs / intervalTime);
+
+        this.timer = setInterval(() => {
+          if (!this.active) {
+            clearInterval(this.timer);
+            return;
+          }
+          
+          if (Math.random() < 0.15) {
+            this.triggerGlitchBurst();
+            this.currentPct += (Math.random() * 4 - 1);
+          } else if (this.currentPct < this.targetPct) {
+            this.currentPct += step * (0.8 + Math.random() * 0.4);
+          }
+          
+          if (this.currentPct > 94) this.currentPct = 94;
+          this.updateUI();
+        }, intervalTime);
+      },
+
+      update(pct, newLabel = null) {
+        this.init();
+        this.targetPct = Math.min(100, Math.max(0, pct));
+        this.currentPct = this.targetPct;
+        if (newLabel && this.labelEl) {
+          this.scrambleText(this.labelEl, newLabel);
+        }
+        this.triggerGlitchBurst();
+        this.updateUI();
+      },
+
+      done(completionLabel = "COMPLETE") {
+        this.init();
+        this.active = false;
+        clearInterval(this.timer);
+        this.currentPct = 100;
+        this.triggerGlitchBurst();
+        if (this.labelEl) this.scrambleText(this.labelEl, completionLabel);
+        if (this.subEl) this.subEl.innerText = "CATALOG ASSETS SYNCHRONIZED";
+        this.updateUI();
+
+        setTimeout(() => {
+          this.dismiss();
+        }, 1100);
+      },
+
+      fail(errorLabel = "FAILED") {
+        this.init();
+        this.active = false;
+        clearInterval(this.timer);
+        this.triggerGlitchBurst();
+        if (this.labelEl) this.labelEl.innerText = errorLabel;
+        if (this.subEl) this.subEl.innerText = "OPERATION INTERRUPTED";
+        if (this.percentEl) this.percentEl.innerText = "[ ERR ]";
+        setTimeout(() => {
+          this.dismiss();
+        }, 2200);
+      },
+
+      dismiss() {
+        this.active = false;
+        clearInterval(this.timer);
+        if (this.hud) {
+          this.hud.classList.add('hidden');
+          if (this.bar) this.bar.style.width = '0%';
+        }
+      },
+
+      updateUI() {
+        const display = Math.min(100, Math.max(0, Math.round(this.currentPct)));
+        if (this.bar) this.bar.style.width = `${display}%`;
+        if (this.percentEl) this.percentEl.innerText = `[ ${display}% ]`;
+      }
+    };
+    window.GlitchProgress = GlitchProgress;
+
+    // Global authenticated fetch wrapper — injects Bearer token automatically & syncs Glitch HUD
+    async function apiFetch(url, options = {}) {
+      const isMutation = options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase());
+      const isAuthUrl = url.includes('/api/auth');
+      const shouldAutoGlitch = isMutation && !GlitchProgress.active && !url.includes('/api/status') && !url.includes('/api/events') && !isAuthUrl;
+      if (shouldAutoGlitch) {
+        let label = "Updating Studio Catalog...";
+        let sub = "COMMITTING LOOKBOOK ASSETS";
+        if (url.includes('/api/products') && options.method === 'DELETE') {
+          label = "Removing Product Record...";
+          sub = "PURGING ASSETS & DATABASE ENTRIES";
+        } else if (url.includes('/api/products')) {
+          label = "Saving Product Record...";
+          sub = "UPDATING LOOKBOOK REPOSITORY";
+        } else if (url.includes('/api/categories')) {
+          label = "Synchronizing Categories...";
+          sub = "EDITORIAL TAXONOMY ALIGNMENT";
+        } else if (url.includes('/api/duplicates')) {
+          label = "Auditing Catalog Duplicates...";
+          sub = "VISUAL HASH CLUSTERING";
+        } else if (url.includes('/api/upload/check-duplicate')) {
+          label = "Auditing Visual Fingerprint...";
+          sub = "DUPLICATE VERIFICATION";
+        } else if (url.includes('/api/upload/batch')) {
+          label = "Deploying Catalog Assets...";
+          sub = "INGESTION & METADATA EXTRACTION";
+        }
+        GlitchProgress.start(label, 1800, sub);
+      }
+
+      const token = getAuthToken();
+      const headers = { ...(options.headers || {}) };
+      if (token && !(options.body instanceof FormData)) {
+        headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      try {
+        const response = await fetch(url, { ...options, headers });
+        if (response.status === 401 && !isAuthUrl) {
+          clearAuthSession();
+          showAuthOverlay();
+          if (shouldAutoGlitch) GlitchProgress.fail("SESSION EXPIRED");
+          throw new Error('Session expired. Please sign in again.');
+        }
+        if (shouldAutoGlitch) {
+          GlitchProgress.done("COMPLETED");
+        }
+        return response;
+      } catch (err) {
+        if (shouldAutoGlitch) {
+          GlitchProgress.fail("OPERATION FAILED");
+        }
+        throw err;
+      }
+    }
+
+    // =========================================================================
+    // AUTH OVERLAY CONTROL
+    // =========================================================================
+    function showAuthOverlay() {
+      const overlay = document.getElementById('authOverlay');
+      if (overlay) overlay.classList.remove('hidden');
+      const badge = document.getElementById('userBadge');
+      if (badge) badge.classList.add('hidden');
+      loadUserSuggestions();
+      const uInput = document.getElementById('loginUsername');
+      if (uInput) uInput.value = '';
+      const pInput = document.getElementById('loginPassword');
+      if (pInput) pInput.value = '';
+      const errEl = document.getElementById('loginError');
+      if (errEl) errEl.textContent = '';
+      closeUserSuggestions();
+      // Ensure browser autofill does not force a username into the field on load
+      setTimeout(() => {
+        if (uInput && !uInput.matches(':focus')) {
+          uInput.value = '';
+        }
+        if (pInput && !pInput.matches(':focus')) {
+          pInput.value = '';
+        }
+      }, 80);
+    }
+
+    function hideAuthOverlay(user) {
+      const overlay = document.getElementById('authOverlay');
+      if (overlay) overlay.classList.add('hidden');
+      updateUserBadge(user);
+    }
+
+    function updateUserBadge(user) {
+      const badge = document.getElementById('userBadge');
+      const nameEl = document.getElementById('headerUsername');
+      if (badge && user) {
+        badge.classList.remove('hidden');
+        if (nameEl) nameEl.textContent = user.username || user.email || 'User';
+      }
+    }
+
+    function resetCatalogState() {
+      catalogProducts = [];
+      catalogDuplicateGroups = [];
+      duplicateProductIds = new Set();
+      cachedCategories = [];
+      const grid = document.getElementById('productGrid');
+      if (grid) grid.innerHTML = '';
+      const empty = document.getElementById('emptyCatalog');
+      if (empty) empty.classList.add('hidden');
+      const badge = document.getElementById('userBadge');
+      if (badge) badge.classList.add('hidden');
+      const nameEl = document.getElementById('headerUsername');
+      if (nameEl) nameEl.textContent = '';
+      const catList = document.getElementById('categoryList');
+      if (catList) catList.innerHTML = '';
+      const catCountAll = document.getElementById('catCount_all');
+      if (catCountAll) catCountAll.innerText = '0';
+      const catBadge = document.getElementById('catalogCountBadge');
+      if (catBadge) catBadge.innerText = '0';
+      const cutBadge = document.getElementById('cutoutsCountBadge');
+      if (cutBadge) cutBadge.innerText = '0';
+      const scnBadge = document.getElementById('scenesCountBadge');
+      if (scnBadge) scnBadge.innerText = '0';
+      const angBadge = document.getElementById('anglesCountBadge');
+      if (angBadge) angBadge.innerText = '0';
+      const cutGrid = document.getElementById('cutoutsGrid');
+      if (cutGrid) cutGrid.innerHTML = '';
+      const scnGrid = document.getElementById('scenesGrid');
+      if (scnGrid) scnGrid.innerHTML = '';
+    }
+
+    function logoutUser() {
+      const currentUser = getAuthUser();
+      if (currentUser && currentUser.username) {
+        localStorage.setItem('last_registered_username', currentUser.username);
+      }
+      clearAuthSession();
+      resetCatalogState();
+      showToast('You have been signed out.', 'info', 2000);
+      loadUserSuggestions();
+      showAuthOverlay();
+      const uInput = document.getElementById('loginUsername');
+      if (uInput) uInput.value = '';
+      const pInput = document.getElementById('loginPassword');
+      if (pInput) pInput.value = '';
+      const errEl = document.getElementById('loginError');
+      if (errEl) errEl.textContent = '';
+      closeUserSuggestions();
+    }
+
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      if (btn) {
+        btn.innerHTML = isPassword
+          ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+          : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+      }
+      input.focus();
+    }
+
+    // =========================================================================
+    // DYNAMIC USER SUGGESTIONS & SELECTION
+    // =========================================================================
+    let cachedSuggestedUsers = [];
+
+    function getUserAvatarGradient(username) {
+      if (username === 'alex' || username === 'alex_studio') return 'linear-gradient(135deg,#38bdf8,#6366f1)';
+      if (username === 'morgan' || username === 'morgan_catalog') return 'linear-gradient(135deg,#ec4899,#f43f5e)';
+      if (username === 'vedant' || username === 'vedant_surve') return 'linear-gradient(135deg,#10b981,#06b6d4)';
+      const gradients = [
+        'linear-gradient(135deg,#10b981,#06b6d4)',
+        'linear-gradient(135deg,#8b5cf6,#d946ef)',
+        'linear-gradient(135deg,#f59e0b,#ef4444)',
+        'linear-gradient(135deg,#06b6d4,#3b82f6)',
+        'linear-gradient(135deg,#14b8a6,#6366f1)',
+        'linear-gradient(135deg,#f97316,#ec4899)'
+      ];
+      let hash = 0;
+      for (let i = 0; i < username.length; i++) hash += username.charCodeAt(i);
+      return gradients[Math.abs(hash) % gradients.length];
+    }
+
+    function renderUserSuggestionsHTML(users) {
+      const listContainer = document.getElementById('userSuggestionsListContainer');
+      if (!listContainer) return;
+      const activePref = localStorage.getItem('last_registered_username');
+      if (!users || users.length === 0) {
+        listContainer.innerHTML = '<div style="padding:14px;color:#71717A;font-size:11px;text-align:center">No user accounts found</div>';
+        return;
+      }
+      listContainer.innerHTML = users.map(u => {
+        const initial = (u.username || 'U')[0].toUpperCase();
+        const grad = getUserAvatarGradient(u.username);
+        const isDemo = u.is_demo || ['alex', 'morgan', 'vedant', 'alex_studio', 'morgan_catalog'].includes(u.username);
+        const badge = isDemo 
+          ? '<span style="font-size:9px;background:#FAFAFA;color:#0A0A0A;border:1px solid #E4E4E7;padding:1px 5px;border-radius:4px;font-weight:600;font-family:monospace">DEMO</span>'
+          : '<span style="font-size:9px;background:#FAFAFA;color:#71717A;border:1px solid #E4E4E7;padding:1px 5px;border-radius:4px;font-weight:600;font-family:monospace">USER</span>';
+        const countText = u.product_count !== undefined 
+          ? `${u.product_count} ${u.product_count === 1 ? 'item' : 'items'}`
+          : (isDemo ? 'Catalog' : 'Seller');
+        const isRecent = activePref && u.username === activePref;
+
+        return `
+          <div class="user-suggestion-item" onclick="selectDemoUser('${escapeQuotes(u.username)}', ${isDemo})" style="${isRecent ? 'background:#F4F4F5;' : ''}">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:30px;height:30px;border-radius:8px;background:${grad};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;flex-shrink:0">${initial}</div>
+              <div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="color:#0A0A0A;font-weight:600;font-size:12px">${escapeQuotes(u.username)}</span>
+                  ${badge}
+                  ${isRecent ? '<span style="font-size:8px;background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;padding:1px 4px;border-radius:3px;font-weight:600">RECENT</span>' : ''}
+                </div>
+                <div style="color:#71717A;font-size:10px">${escapeQuotes(u.full_name || u.field || 'Catalog Account')}</div>
+              </div>
+            </div>
+            <span style="font-size:10px;color:#71717A;background:#FAFAFA;border:1px solid #E4E4E7;padding:2px 7px;border-radius:6px;font-family:monospace">${countText}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterUserSuggestions(query) {
+      const q = (query || '').trim().toLowerCase();
+      if (!q) {
+        renderUserSuggestionsHTML(cachedSuggestedUsers);
+        return;
+      }
+      const filtered = cachedSuggestedUsers.filter(u => {
+        return (u.username && u.username.toLowerCase().includes(q)) ||
+               (u.email && u.email.toLowerCase().includes(q)) ||
+               (u.full_name && u.full_name.toLowerCase().includes(q));
+      });
+      renderUserSuggestionsHTML(filtered);
+    }
+
+    async function loadUserSuggestions(preferredUsername = null) {
+      try {
+        const res = await fetch('/api/auth/demo-users');
+        if (res.ok) {
+          const data = await res.json();
+          cachedSuggestedUsers = data.users || [];
+        }
+      } catch (err) {
+        console.warn('Could not load user suggestions:', err);
+      }
+
+      // Check localStorage for recently registered username
+      const lastRegistered = localStorage.getItem('last_registered_username');
+      const activePref = preferredUsername || lastRegistered;
+
+      // Render dropdown items
+      renderUserSuggestionsHTML(cachedSuggestedUsers);
+
+      // Render Quick Fill Chips (up to top 4 accounts)
+      const chipsContainer = document.getElementById('userQuickFillContainer');
+      if (chipsContainer) {
+        const topUsers = cachedSuggestedUsers.slice(0, 3);
+        chipsContainer.innerHTML = `
+          <span style="font-size:10px;color:#71717A;font-weight:500">Quick Fill:</span>
+          ${topUsers.map(u => {
+            const isDemo = u.is_demo || ['alex', 'morgan', 'vedant', 'alex_studio', 'morgan_catalog'].includes(u.username);
+            const dotColor = (u.username === 'alex' || u.username === 'alex_studio') ? '#0A0A0A' : ((u.username === 'morgan' || u.username === 'morgan_catalog') ? '#71717A' : '#10b981');
+            const isRecent = activePref && u.username === activePref;
+            return `
+              <button type="button" class="user-chip-btn" onclick="selectDemoUser('${escapeQuotes(u.username)}', ${isDemo})" style="${isRecent ? 'border-color:#0A0A0A;background:#F4F4F5;font-weight:600;' : ''}">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor}"></span>
+                ${escapeQuotes(u.username)}
+              </button>
+            `;
+          }).join('')}
+        `;
+      }
+
+    }
+
+    function selectDemoUser(username, isDemo = false) {
+      const uInput = document.getElementById('loginUsername');
+      const pInput = document.getElementById('loginPassword');
+      const errEl = document.getElementById('loginError');
+      if (uInput) {
+        uInput.value = username;
+        uInput.classList.add('ring-2', 'ring-zinc-900/20');
+        setTimeout(() => uInput.classList.remove('ring-2', 'ring-zinc-900/20'), 600);
+      }
+      if (pInput) {
+        if (isDemo) {
+          pInput.value = 'password123';
+        } else {
+          pInput.value = '';
+        }
+      }
+      if (errEl) errEl.textContent = '';
+      closeUserSuggestions();
+      showToast(`Selected user: ${username}`, 'info', 1800);
+      if (isDemo) {
+        const btn = document.getElementById('loginBtn');
+        if (btn) btn.focus();
+      } else if (pInput) {
+        pInput.focus();
+      }
+    }
+
+    function openUserSuggestions(e) {
+      if (e && e.type !== 'focus') {
+        e.stopPropagation();
+      }
+      const dropdown = document.getElementById('userSuggestionsDropdown');
+      if (dropdown) dropdown.style.display = 'block';
+      const chev = document.getElementById('suggestChevron');
+      if (chev) chev.textContent = '▲';
+      const uInput = document.getElementById('loginUsername');
+      filterUserSuggestions(uInput ? uInput.value : '');
+    }
+
+    function closeUserSuggestions() {
+      const dropdown = document.getElementById('userSuggestionsDropdown');
+      if (dropdown) dropdown.style.display = 'none';
+      const chev = document.getElementById('suggestChevron');
+      if (chev) chev.textContent = '▼';
+    }
+
+    function toggleUserSuggestions(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const dropdown = document.getElementById('userSuggestionsDropdown');
+      if (!dropdown) return;
+      if (dropdown.style.display === 'block') {
+        closeUserSuggestions();
+      } else {
+        openUserSuggestions(e);
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const dropdown = document.getElementById('userSuggestionsDropdown');
+      const btn = document.getElementById('suggestUsersBtn');
+      const input = document.getElementById('loginUsername');
+      if (dropdown && dropdown.style.display === 'block') {
+        if (!dropdown.contains(e.target) && e.target !== btn && e.target !== input && !btn?.contains(e.target)) {
+          closeUserSuggestions();
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeUserSuggestions();
+      }
+    });
+
+    function switchAuthTab(tab) {
+      closeUserSuggestions();
+      const loginForm = document.getElementById('loginForm');
+      const registerForm = document.getElementById('registerForm');
+      const tabLogin = document.getElementById('authTabLogin');
+      const tabRegister = document.getElementById('authTabRegister');
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('registerError').textContent = '';
+
+      if (tab === 'login') {
+        loginForm.style.display = 'block';
+        registerForm.style.display = 'none';
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+        const uInput = document.getElementById('loginUsername');
+        if (uInput) uInput.value = '';
+        const pInput = document.getElementById('loginPassword');
+        if (pInput) pInput.value = '';
+        loadUserSuggestions();
+      } else {
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'block';
+        tabLogin.classList.remove('active');
+        tabRegister.classList.add('active');
+      }
+    }
+
+    async function handleLogin(e) {
+      if (e) e.preventDefault();
+      closeUserSuggestions();
+      const btn = document.getElementById('loginBtn');
+      const errEl = document.getElementById('loginError');
+      const usernameInput = document.getElementById('loginUsername');
+      const passwordInput = document.getElementById('loginPassword');
+
+      const username = usernameInput ? usernameInput.value.trim() : '';
+      const password = passwordInput ? passwordInput.value : '';
+
+      if (!username) {
+        if (errEl) errEl.textContent = 'Please enter your username or email.';
+        usernameInput?.focus();
+        return;
+      }
+      if (!password) {
+        if (errEl) errEl.textContent = 'Please enter your password.';
+        passwordInput?.focus();
+        return;
+      }
+
+      if (errEl) errEl.textContent = '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px">
+          <svg class="auth-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>
+          Signing in...
+        </span>`;
+      }
+
+      let authenticatedUser = null;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        let data = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = { detail: res.statusText || 'Unable to connect to authentication service.' };
+        }
+        if (!res.ok) {
+          throw new Error(data?.detail || 'Invalid username or password.');
+        }
+
+        setAuthSession(data.access_token, data.user);
+        localStorage.setItem('last_registered_username', data.user.username);
+        hideAuthOverlay(data.user);
+        showToast(`Welcome back, ${data.user.username}! 👋`, 'success', 3000);
+        authenticatedUser = data.user;
+      } catch (err) {
+        if (errEl) errEl.textContent = err.message || 'Invalid credentials. Please try again.';
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Sign In to Your Catalog';
+        }
+      }
+
+      if (authenticatedUser) {
+        initAppForUser().catch(err => {
+          console.warn('Post-login catalog sync notice:', err);
+        });
+      }
+    }
+
+    async function handleRegister(e) {
+      if (e) e.preventDefault();
+      closeUserSuggestions();
+      const btn = document.getElementById('registerBtn');
+      const errEl = document.getElementById('registerError');
+      const username = document.getElementById('regUsername')?.value.trim() || '';
+      const fullName = document.getElementById('regFullName')?.value.trim() || '';
+      const email = document.getElementById('regEmail')?.value.trim() || '';
+      const password = document.getElementById('regPassword')?.value || '';
+      const confirmPassword = document.getElementById('regConfirmPassword')?.value || '';
+
+      if (errEl) errEl.textContent = '';
+
+      if (!username || username.length < 3) {
+        if (errEl) errEl.textContent = 'Username must be at least 3 characters.';
+        return;
+      }
+      if (!email || !email.includes('@') || !email.includes('.')) {
+        if (errEl) errEl.textContent = 'Please enter a valid email address.';
+        return;
+      }
+      if (!password || password.length < 6) {
+        if (errEl) errEl.textContent = 'Password must be at least 6 characters.';
+        return;
+      }
+      if (password !== confirmPassword) {
+        if (errEl) errEl.textContent = 'Passwords do not match.';
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px">
+          <svg class="auth-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>
+          Creating account...
+        </span>`;
+      }
+
+      let registeredUser = null;
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, password, full_name: fullName })
+        });
+        let data = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = { detail: res.statusText || 'Unable to connect to authentication service.' };
+        }
+        if (!res.ok) {
+          throw new Error(data?.detail || 'Registration failed.');
+        }
+
+        setAuthSession(data.access_token, data.user);
+        localStorage.setItem('last_registered_username', data.user.username);
+        const regForm = document.getElementById('registerForm');
+        if (regForm) regForm.reset();
+        hideAuthOverlay(data.user);
+        showToast(`Account created! Welcome, ${data.user.username}! 🎉`, 'success', 3500);
+        registeredUser = data.user;
+
+        // Refresh user suggestions for future quick fill
+        loadUserSuggestions(data.user.username);
+      } catch (err) {
+        if (errEl) errEl.textContent = err.message || 'Registration failed. Please try again.';
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Create My Catalog Account';
+        }
+      }
+
+      if (registeredUser) {
+        initAppForUser().catch(err => {
+          console.warn('Post-register catalog sync notice:', err);
+        });
+      }
+    }
+
+    // Check if user is already signed in on page load
+    // Privacy Protection: Whenever the website starts, it starts with the login page only
+    async function checkAuthOnLoad() {
+      clearAuthSession();
+      resetCatalogState();
+      showAuthOverlay();
+      return false;
+    }
+
     // In-App Animated Toast Notifications (Minimalist Luxury)
     function showToast(message, type = 'info', duration = 3500) {
       const container = document.getElementById('toastContainer');
@@ -1625,6 +3242,7 @@
 
     let currentView = 'catalog';
     let currentCategoryFilter = null;
+    let cachedCategories = [];
     let currentStatusFilter = '';
     let currentSort = 'newest';
     let activeProduct = null;
@@ -1639,16 +3257,15 @@
     let isVisualSearchActive = false;
     let visualSearchMatches = [];
 
-    // Initialize UI on window load
-    window.addEventListener('DOMContentLoaded', async () => {
-      lucide.createIcons();
+    // =========================================================================
+    // Auth-aware app initializer — called on load and after successful login/register
+    // =========================================================================
+    let hasInitializedAppListeners = false;
+    let _pollIntervalStarted = false;
 
-      // Restore auto-matting preference
-      const savedAutoMat = localStorage.getItem('autoMattingOnUpload');
-      if (savedAutoMat !== null) {
-        const toggle = document.getElementById('autoMattingOnUploadToggle');
-        if (toggle) toggle.checked = (savedAutoMat === 'true');
-      }
+    function setupGlobalEventListeners() {
+      if (hasInitializedAppListeners) return;
+      hasInitializedAppListeners = true;
 
       // Register Drag and Drop for catalogDropZone
       const dropZone = document.getElementById('catalogDropZone');
@@ -1681,7 +3298,7 @@
 
         dropZone.addEventListener('click', (e) => {
           if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
-            document.getElementById('fastUploadInput').click();
+            document.getElementById('fastUploadInput')?.click();
           }
         });
       }
@@ -1702,15 +3319,60 @@
           if (suggestions) suggestions.classList.add('hidden');
         }
       });
+    }
 
-      await fetchCategories();
-      await fetchProducts();
-      await checkCatalogDuplicates();
-      await fetchScenes();
-      await fetchAnglesList();
-      pollStatus();
-      initRealtimeEventStream();
-      setInterval(pollStatus, 1500);
+    async function initAppForUser() {
+      setupGlobalEventListeners();
+      // AI Background Removal is permanently enabled by default
+      localStorage.setItem('autoMattingOnUpload', 'true');
+      const toggle = document.getElementById('autoMattingOnUploadToggle');
+      if (toggle) toggle.checked = true;
+
+      try {
+        await fetchCategories();
+      } catch (err) {
+        console.warn('Failed to load categories:', err);
+      }
+
+      try {
+        await fetchProducts();
+      } catch (err) {
+        console.warn('Failed to load products:', err);
+      }
+
+      try {
+        await checkCatalogDuplicates();
+      } catch (err) {
+        console.warn('Failed to check catalog duplicates:', err);
+      }
+
+      try {
+        await fetchScenes();
+      } catch (err) {
+        console.warn('Failed to load scenes:', err);
+      }
+
+      try {
+        await fetchAnglesList();
+      } catch (err) {
+        console.warn('Failed to load angles list:', err);
+      }
+
+      if (!_pollIntervalStarted) {
+        pollStatus();
+        initRealtimeEventStream();
+        setInterval(pollStatus, 1500);
+        _pollIntervalStarted = true;
+      }
+      lucide.createIcons();
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      setupGlobalEventListeners();
+      const authed = await checkAuthOnLoad();
+      if (!authed) return; // show overlay; data loads after login
+      await initAppForUser();
     });
 
     // View Switching
@@ -1762,9 +3424,10 @@
     // =========================================================================
     async function fetchCategories() {
       try {
-        const res = await fetch('/api/categories');
+        const res = await apiFetch('/api/categories');
         const data = await res.json();
         const cats = data.categories || [];
+        cachedCategories = cats;
 
         // Update Left Sidebar
         const listEl = document.getElementById('categoryList');
@@ -1828,7 +3491,8 @@
       const filterBar = document.getElementById('activeCategoryFilterBar');
       if (catId) {
         filterBar.classList.remove('hidden');
-        document.getElementById('activeCategoryFilterName').innerText = 'Category ID #' + catId;
+        const found = (cachedCategories || []).find(c => c.id === catId);
+        document.getElementById('activeCategoryFilterName').innerText = found ? found.name : ('Category #' + catId);
       } else {
         filterBar.classList.add('hidden');
       }
@@ -1868,7 +3532,7 @@
 
       try {
         if (id) {
-          const res = await fetch(`/api/categories/${id}`, {
+          const res = await apiFetch(`/api/categories/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, icon, description })
@@ -1876,7 +3540,7 @@
           if (!res.ok) throw new Error(await res.text());
           showToast(`Category "${name}" updated successfully.`, 'success');
         } else {
-          const res = await fetch('/api/categories', {
+          const res = await apiFetch('/api/categories', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, icon, description })
@@ -1895,7 +3559,7 @@
       const catLabel = name ? `category "${name}"` : "this category";
       if (!confirm(`Are you sure you want to delete ${catLabel}?\n\nAny products currently assigned to this category will be safely reassigned to the "General Catalog".`)) return;
       try {
-        const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         const reassigned = data.reassigned_products !== undefined ? data.reassigned_products : 0;
@@ -1920,7 +3584,7 @@
         if (currentStatusFilter) url += `&status=${currentStatusFilter}`;
         if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
 
-        const res = await fetch(url);
+        const res = await apiFetch(url);
         const data = await res.json();
         catalogProducts = data.products || [];
 
@@ -1932,6 +3596,7 @@
     }
 
     function filterByStatus(status) {
+      isFilteringDuplicatesOnly = false;
       currentStatusFilter = status;
       document.querySelectorAll('.status-filter-btn').forEach(b => {
         b.className = "status-filter-btn px-2.5 py-1 rounded-md text-xs font-mono tracking-tight bg-white text-[#71717A] border border-[#E4E4E7] hover:border-[#0A0A0A] hover:text-[#0A0A0A] transition-colors";
@@ -1985,15 +3650,21 @@
           ? `<span class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-mono tracking-tight bg-white text-[#0A0A0A] border border-[#0A0A0A] shadow-xs">${p.similarity_percentage || Math.round((p.similarity_score || 0) * 100)}% Match</span>`
           : `<span class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-mono uppercase tracking-tight bg-white text-[#71717A] border border-[#E4E4E7] shadow-xs">${escapeQuotes(p.category_name || 'General')}</span>`;
 
+        const isDuplicate = duplicateProductIds && duplicateProductIds.has(p.id);
+
+        const cardBadge = isDuplicate
+          ? `<span onclick="event.stopPropagation(); openDuplicateCleanupModal();" class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-mono tracking-tight bg-[#FFF5F5] hover:bg-[#FEE2E2] text-[#E05A47] border border-[#E05A47]/40 shadow-xs flex items-center space-x-1 cursor-pointer transition-colors" title="Click to open Duplicate Manager"><i data-lucide="copy" class="w-3 h-3 text-[#E05A47]"></i><span>Duplicate</span></span>`
+          : matchBadge;
+
         return `
-          <div class="bg-white rounded-md border border-[#E4E4E7] hover:border-[#0A0A0A] transition-colors flex flex-col group overflow-hidden">
+          <div class="bg-white rounded-md border ${isDuplicate ? 'border-[#E05A47]/60 shadow-xs bg-[#FFFDFD]' : 'border-[#E4E4E7]'} hover:border-[#0A0A0A] transition-colors flex flex-col group overflow-hidden">
             <!-- Thumbnail with standardized contain fitting and neutral background padding -->
             <div class="card-img-container ${p.cutout_url ? currentCanvasBg : 'bg-[#FAFAFA]'} p-4 cursor-pointer relative" onclick="openStudioModal(${p.id})">
               ${imgContent}
               <span class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-mono uppercase tracking-tight shadow-xs ${st.color}">
                 ${st.label}
               </span>
-              ${matchBadge}
+              ${cardBadge}
             </div>
 
             <!-- Meta & Actions with generous internal padding -->
@@ -2015,6 +3686,17 @@
                   <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                   <span>Open Studio</span>
                 </button>
+
+                ${isDuplicate ? `
+                  <button 
+                    onclick="event.stopPropagation(); executeOneClickCleanup([${p.id}])"
+                    title="Delete this redundant duplicate"
+                    class="h-8 px-2.5 rounded-md bg-[#FFF5F5] hover:bg-[#FEE2E2] text-[#E05A47] hover:text-[#B91C1C] border border-[#E05A47]/30 font-medium text-xs flex items-center space-x-1 transition-colors shrink-0"
+                  >
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Delete</span>
+                  </button>
+                ` : ''}
                 
                 <div class="relative">
                   <button 
@@ -2037,6 +3719,15 @@
                       <i data-lucide="edit-2" class="w-3.5 h-3.5 text-[#71717A]"></i>
                       <span>Edit Details</span>
                     </button>
+                    ${isDuplicate ? `
+                      <button 
+                        onclick="event.stopPropagation(); closeAllDropdowns(); executeOneClickCleanup([${p.id}])" 
+                        class="w-full text-left px-3 py-1.5 text-xs text-[#E05A47] hover:bg-[#FFF5F5] flex items-center space-x-2 font-medium transition-colors"
+                      >
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5 text-[#E05A47]"></i>
+                        <span>Delete Duplicate</span>
+                      </button>
+                    ` : ''}
                     <button 
                       onclick="event.stopPropagation(); closeAllDropdowns(); deleteProduct(${p.id}, '${escapeQuotes(p.name)}')" 
                       class="w-full text-left px-3 py-1.5 text-xs text-[#E05A47] hover:bg-[#FAFAFA] flex items-center space-x-2 font-medium transition-colors"
@@ -2190,16 +3881,23 @@
       loading.classList.remove('hidden');
       results.innerHTML = '';
 
+      if (window.GlitchProgress) {
+        window.GlitchProgress.start("Visual Silhouette Search...", 2200, "COMPARING PRODUCT SILHOUETTES & TEXTURES");
+      }
+
       const formData = new FormData();
       formData.append('file', file);
 
       try {
-        const res = await fetch('/api/search/by-image', {
+        const res = await apiFetch('/api/search/by-image', {
           method: 'POST',
           body: formData
         });
         const data = await res.json();
         loading.classList.add('hidden');
+        if (window.GlitchProgress) {
+          window.GlitchProgress.done("MATCH SEARCH READY");
+        }
 
         const matches = data.matches || [];
         if (matches.length === 0) {
@@ -2299,7 +3997,7 @@
       batchData.append('files', file);
 
       try {
-        const res = await fetch('/api/upload/batch', {
+        const res = await apiFetch('/api/upload/batch', {
           method: 'POST',
           body: batchData
         });
@@ -2397,8 +4095,11 @@
       if (statusBadge) statusBadge.innerText = `Deploying ${files.length} images...`;
       showToast(`Uploading and deploying ${files.length} product images into catalog...`, 'info', 4000);
 
+      const skipDups = document.getElementById('skipDuplicateUploadToggle')?.checked ?? false;
+      const batchUrl = '/api/upload/batch' + (skipDups ? '?skip_duplicates=true' : '');
+
       try {
-        const res = await fetch('/api/upload/batch', {
+        const res = await apiFetch(batchUrl, {
           method: 'POST',
           body: formData
         });
@@ -2423,12 +4124,16 @@
         }
         const statusSpan = document.getElementById('previewStatus');
         if (statusSpan) {
-          statusSpan.innerHTML = `<span class="text-emerald-600 font-bold flex items-center space-x-1"><i data-lucide="check" class="w-3.5 h-3.5"></i><span>All Deployed</span></span>`;
+          statusSpan.innerHTML = `<span class="text-emerald-600 font-bold flex items-center space-x-1"><i data-lucide="check" class="w-3.5 h-3.5"></i><span>All Processed</span></span>`;
         }
 
         showToast(`Successfully deployed ${count} product(s) into catalog!`, 'success', 5000);
         if (dupCount > 0) {
-          showToast(`${dupCount} image(s) matched existing catalog products.`, 'warning', 5000);
+          if (skipDups) {
+            showToast(`${dupCount} duplicate image(s) automatically skipped to protect catalog hygiene.`, 'info', 5000);
+          } else {
+            showToast(`${dupCount} image(s) matched existing products. Review in Duplicates manager.`, 'warning', 5000);
+          }
         }
 
         const shouldAutoMat = document.getElementById('autoMattingOnUploadToggle')?.checked ?? true;
@@ -2443,6 +4148,7 @@
 
         await fetchCategories();
         await fetchProducts();
+        await checkCatalogDuplicates(activeDuplicateSensitivity);
         await fetchStatus();
       } catch (err) {
         showToast("Batch deployment failed: " + err.message, 'error', 5000);
@@ -2466,13 +4172,13 @@
       document.getElementById('statusText').innerText = "Checking duplicates...";
 
       try {
-        const res = await fetch('/api/upload/check-duplicate', {
+        const res = await apiFetch('/api/upload/check-duplicate', {
           method: 'POST',
           body: formData
         });
         const check = await res.json();
 
-        if (check.exists && check.match) {
+        if (check.exists && check.match && (check.match.similarity_score >= 0.94)) {
           // DUPLICATE FOUND: Show Interceptor Modal
           pendingDuplicateUploadFile = file;
           pendingDuplicateMatch = check.match;
@@ -2500,7 +4206,7 @@
         const batchData = new FormData();
         batchData.append('files', file);
         document.getElementById('statusText').innerText = "Deploying product...";
-        const deployRes = await fetch('/api/upload/batch', {
+        const deployRes = await apiFetch('/api/upload/batch', {
           method: 'POST',
           body: batchData
         });
@@ -2558,7 +4264,7 @@
         batchData.append('files', file);
         showToast(`Deploying "${file.name}" anyway...`, 'info', 2000);
         try {
-          const res = await fetch('/api/upload/batch', {
+          const res = await apiFetch('/api/upload/batch', {
             method: 'POST',
             body: batchData
           });
@@ -2579,41 +4285,154 @@
     }
 
     // =========================================================================
-    // Catalog Duplicates Audit & 1-Click Batch Cleanup
+    // =========================================================================
+    // Catalog Duplicates Audit, Visual Diff & Smart Merge System
     // =========================================================================
     let catalogDuplicateGroups = [];
+    let duplicateProductIds = new Set();
     let isDuplicateAuditRunning = false;
+    let activeDuplicateSensitivity = 'standard';
+    let isFilteringDuplicatesOnly = false;
 
-    async function checkCatalogDuplicates() {
+    function setDuplicateSensitivity(sens) {
+      activeDuplicateSensitivity = sens;
+      ['strict', 'standard', 'relaxed'].forEach(s => {
+        const btn = document.getElementById(`dupSens_${s}`);
+        if (!btn) return;
+        if (s === sens) {
+          btn.className = "px-2 py-1 rounded text-[11px] font-mono transition-colors bg-[#0A0A0A] text-white";
+        } else {
+          btn.className = "px-2 py-1 rounded text-[11px] font-mono transition-colors text-[#71717A] hover:text-[#0A0A0A]";
+        }
+      });
+      checkCatalogDuplicates(sens, true);
+    }
+
+    async function checkCatalogDuplicates(sensitivity = activeDuplicateSensitivity, updateModalIfOpen = false) {
       if (isDuplicateAuditRunning) return;
       isDuplicateAuditRunning = true;
       try {
-        const res = await fetch('/api/duplicates');
+        const res = await apiFetch(`/api/duplicates?sensitivity=${encodeURIComponent(sensitivity)}`);
         if (!res.ok) return;
         const data = await res.json();
         catalogDuplicateGroups = data.groups || [];
+        duplicateProductIds = new Set();
+        let totalReclaimBytes = 0;
+
+        catalogDuplicateGroups.forEach(g => {
+          (g.duplicates || []).forEach(d => {
+            duplicateProductIds.add(d.id);
+            if (d.raw_size_kb) totalReclaimBytes += (d.raw_size_kb * 1024);
+            if (d.cutout_size_kb) totalReclaimBytes += (d.cutout_size_kb * 1024);
+          });
+        });
+
         const totalDups = data.total_duplicates || 0;
         const groupsCount = data.duplicate_groups_count || 0;
+        const reclaimMb = (totalReclaimBytes / (1024 * 1024)).toFixed(2);
 
         const banner = document.getElementById('duplicateAlertBanner');
         const badge = document.getElementById('duplicateTotalBadge');
         const subtext = document.getElementById('duplicateBannerSubtext');
+        const filterBadge = document.getElementById('duplicatesFilterCountBadge');
+        const reclaimEl = document.getElementById('dupReclaimableMb');
+
+        if (reclaimEl) reclaimEl.innerText = `${reclaimMb} MB`;
+
+        if (filterBadge) {
+          if (totalDups > 0) {
+            filterBadge.innerText = totalDups;
+            filterBadge.classList.remove('hidden');
+          } else {
+            filterBadge.classList.add('hidden');
+          }
+        }
 
         if (totalDups > 0) {
           if (badge) badge.innerText = `${totalDups} Duplicate${totalDups > 1 ? 's' : ''} in ${groupsCount} Group${groupsCount > 1 ? 's' : ''}`;
           if (subtext) {
-            subtext.innerText = `The system identified ${totalDups} duplicate product(s) across ${groupsCount} category cluster(s). Click below to delete all duplicates in 1 click while keeping your original items safe.`;
+            subtext.innerText = `The system identified ${totalDups} duplicate image(s) across ${groupsCount} cluster(s). Set primary assets, merge 3D cutouts, or delete in 1-click (~${reclaimMb} MB reclaimable).`;
           }
           if (banner) banner.classList.remove('hidden');
         } else {
           if (banner) banner.classList.add('hidden');
         }
+
+        // If duplicate modal is open, dynamically re-render it
+        const modal = document.getElementById('duplicateCleanupModal');
+        if (updateModalIfOpen && modal && !modal.classList.contains('hidden')) {
+          if (catalogDuplicateGroups.length === 0) {
+            closeDuplicateCleanupModal();
+            showToast("All duplicates resolved successfully!", "success");
+          } else {
+            openDuplicateCleanupModal();
+          }
+        }
+
+        // Re-render product grid if catalogProducts is loaded
+        if (catalogProducts && catalogProducts.length > 0) {
+          if (isFilteringDuplicatesOnly) {
+            const dups = catalogProducts.filter(p => duplicateProductIds.has(p.id) || catalogDuplicateGroups.some(g => g.keep && g.keep.id === p.id && g.duplicates && g.duplicates.length > 0));
+            renderProductGrid(dups);
+          } else {
+            renderProductGrid(catalogProducts);
+          }
+        }
       } catch (err) {
         console.error("Duplicate audit error:", err);
       } finally {
         isDuplicateAuditRunning = false;
-        lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
       }
+    }
+
+    function filterByDuplicatesOnly() {
+      isFilteringDuplicatesOnly = !isFilteringDuplicatesOnly;
+      const dupBtn = document.getElementById('status_duplicates');
+      document.querySelectorAll('.status-filter-btn').forEach(b => {
+        b.className = "status-filter-btn px-2.5 py-1 rounded-md text-xs font-mono tracking-tight bg-white text-[#71717A] border border-[#E4E4E7] hover:border-[#0A0A0A] hover:text-[#0A0A0A] transition-colors";
+      });
+
+      if (isFilteringDuplicatesOnly) {
+        if (dupBtn) {
+          dupBtn.className = "status-filter-btn active px-2.5 py-1 rounded-md text-xs font-mono tracking-tight bg-[#E05A47] text-white border border-[#E05A47]";
+        }
+        const dups = (catalogProducts || []).filter(p => 
+          duplicateProductIds.has(p.id) || 
+          catalogDuplicateGroups.some(g => g.keep && g.keep.id === p.id && g.duplicates && g.duplicates.length > 0)
+        );
+        renderProductGrid(dups);
+        showToast(`Filtering catalog: showing ${dups.length} duplicate & cluster item(s)`, 'info', 2500);
+      } else {
+        currentStatusFilter = '';
+        const activeBtn = document.getElementById('status_all');
+        if (activeBtn) {
+          activeBtn.className = "status-filter-btn active px-2.5 py-1 rounded-md text-xs font-mono tracking-tight bg-[#0A0A0A] text-white border border-[#0A0A0A]";
+        }
+        renderProductGrid(catalogProducts);
+      }
+    }
+
+    function swapGroupPrimary(groupIdx, newPrimaryId) {
+      if (!catalogDuplicateGroups[groupIdx]) return;
+      const grp = catalogDuplicateGroups[groupIdx];
+      const dupIdx = (grp.duplicates || []).findIndex(d => d.id === newPrimaryId);
+      if (dupIdx === -1) return;
+
+      const oldKeep = grp.keep;
+      const newKeep = grp.duplicates[dupIdx];
+
+      grp.duplicates.splice(dupIdx, 1);
+      grp.duplicates.unshift({
+        ...oldKeep,
+        similarity_percentage: newKeep.similarity_percentage || 100,
+        match_reason: "Swapped from primary keep"
+      });
+      grp.keep = newKeep;
+
+      // Re-render modal to reflect new primary designation
+      openDuplicateCleanupModal();
+      showToast(`Product #${newKeep.id} "${newKeep.name}" is now designated as the Primary Keep asset.`, 'success', 3000);
     }
 
     function openDuplicateCleanupModal() {
@@ -2627,80 +4446,141 @@
       }
 
       const totalDups = catalogDuplicateGroups.reduce((acc, g) => acc + (g.duplicates ? g.duplicates.length : 0), 0);
-      if (badge) badge.innerText = `${catalogDuplicateGroups.length} Groups (${totalDups} Duplicates)`;
+      if (badge) badge.innerText = `${catalogDuplicateGroups.length} GROUPS (${totalDups} DUPLICATES)`;
 
       if (container) {
         container.innerHTML = catalogDuplicateGroups.map((g, idx) => {
           const keep = g.keep;
           const keepImg = keep.cutout_url || keep.raw_url || '';
+          const keepRes = keep.resolution ? `${keep.resolution.width}x${keep.resolution.height}` : 'Standard';
+          const keepSize = keep.raw_size_kb ? `${keep.raw_size_kb} KB` : '';
+          const dupIdsList = (g.duplicates || []).map(d => d.id);
           
           const dupsHtml = (g.duplicates || []).map(d => {
             const dImg = d.cutout_url || d.raw_url || '';
             const matchPct = d.similarity_percentage !== undefined ? d.similarity_percentage : 100;
+            const dRes = d.resolution ? `${d.resolution.width}x${d.resolution.height}` : '';
+            const dSize = d.raw_size_kb ? `${d.raw_size_kb} KB` : '';
+            const reason = d.match_reason || `${matchPct}% Visual Match`;
+            const isExact = (d.hamming_distance === 0 || d.exact_md5 || matchPct === 100);
+
             return `
-              <div class="flex items-center justify-between p-3 rounded-md bg-white border border-[#E4E4E7]">
-                <div class="flex items-center space-x-3 min-w-0">
-                  <div class="w-12 h-12 rounded-md bg-white border border-[#E4E4E7] flex items-center justify-center overflow-hidden p-1 shrink-0">
-                    <img src="${dImg}" class="max-h-full max-w-full object-contain" />
-                  </div>
-                  <div class="min-w-0">
-                    <div class="flex items-center space-x-2">
-                      <span class="text-xs font-medium text-[#0A0A0A] truncate">${escapeQuotes(d.name)}</span>
-                      <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-md border border-[#E05A47] text-[#E05A47] bg-white">${matchPct}% Match</span>
+              <div class="p-3 rounded-md bg-white border border-[#E4E4E7] space-y-2.5">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex items-center space-x-3 min-w-0">
+                    <div class="w-14 h-14 rounded-md bg-[#FAFAFA] border border-[#E4E4E7] flex items-center justify-center overflow-hidden p-1 shrink-0">
+                      <img src="${dImg}" class="max-h-full max-w-full object-contain" />
                     </div>
-                    <div class="text-[11px] text-[#71717A] font-mono">ID #${d.id} • SKU: ${d.sku || 'N/A'}</div>
+                    <div class="min-w-0">
+                      <div class="flex items-center space-x-2 flex-wrap">
+                        <span class="text-xs font-semibold text-[#0A0A0A] truncate">${escapeQuotes(d.name)}</span>
+                        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${isExact ? 'bg-[#0A0A0A] text-white' : 'bg-[#FFF5F5] text-[#E05A47] border border-[#E05A47]/40'}">${escapeQuotes(reason)}</span>
+                      </div>
+                      <div class="text-[11px] text-[#71717A] font-mono mt-0.5">ID #${d.id} • SKU: ${d.sku || 'N/A'}</div>
+                      <div class="text-[10px] text-[#71717A] font-mono flex items-center space-x-2 mt-0.5">
+                        ${dRes ? `<span>Res: ${dRes}</span>` : ''}
+                        ${dSize ? `<span>• Size: ${dSize}</span>` : ''}
+                        ${d.cutout_url ? `<span class="px-1 bg-[#F4F4F5] rounded text-[#0A0A0A]">Cutout</span>` : ''}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <button 
-                  type="button" 
-                  onclick="executeOneClickCleanup([${d.id}])" 
-                  title="Delete this duplicate immediately"
-                  class="px-2.5 py-1.5 rounded-md bg-white hover:bg-[#FAFAFA] border border-[#E4E4E7] hover:border-[#E05A47] text-[#E05A47] font-medium text-xs flex items-center space-x-1 shrink-0 ml-2 transition-colors"
-                >
-                  <i data-lucide="trash" class="w-3.5 h-3.5"></i>
-                  <span>Delete</span>
-                </button>
+
+                <!-- Action Toolbar for Candidate -->
+                <div class="flex items-center justify-end space-x-1.5 pt-2 border-t border-[#F4F4F5]">
+                  <button 
+                    type="button" 
+                    onclick="swapGroupPrimary(${idx}, ${d.id})"
+                    title="Promote this product to be the Primary item kept"
+                    class="h-7 px-2.5 rounded-md bg-white hover:bg-[#FAFAFA] border border-[#E4E4E7] text-[#0A0A0A] font-mono text-[11px] flex items-center space-x-1 transition-colors"
+                  >
+                    <i data-lucide="arrow-left-right" class="w-3 h-3 text-[#71717A]"></i>
+                    <span>Set as Primary</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    onclick="executeSmartMerge(${keep.id}, [${d.id}])"
+                    title="Consolidate any cutouts & 3D renders from this product into Primary, then purge this duplicate"
+                    class="h-7 px-2.5 rounded-md bg-white hover:bg-[#0A0A0A] hover:text-white border border-[#0A0A0A] text-[#0A0A0A] font-medium text-[11px] flex items-center space-x-1 transition-colors"
+                  >
+                    <i data-lucide="git-merge" class="w-3 h-3"></i>
+                    <span>Smart Merge</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    onclick="executeOneClickCleanup([${d.id}])" 
+                    title="Delete this duplicate immediately"
+                    class="h-7 px-2 rounded-md bg-[#FFF5F5] hover:bg-[#FEE2E2] border border-[#E05A47]/30 text-[#E05A47] font-medium text-[11px] flex items-center space-x-1 transition-colors"
+                  >
+                    <i data-lucide="trash" class="w-3 h-3"></i>
+                    <span>Delete</span>
+                  </button>
+                </div>
               </div>
             `;
           }).join('');
 
           return `
-            <div class="p-4 rounded-md border border-[#E4E4E7] bg-white space-y-3">
-              <div class="flex items-center justify-between border-b border-[#E4E4E7] pb-2">
+            <div class="p-4 rounded-md border border-[#E4E4E7] bg-white space-y-3.5">
+              <div class="flex items-center justify-between border-b border-[#E4E4E7] pb-2.5 flex-wrap gap-2">
                 <div class="flex items-center space-x-2">
-                  <span class="w-5 h-5 rounded-md bg-[#0A0A0A] text-white text-xs font-mono flex items-center justify-center">${idx + 1}</span>
-                  <h4 class="text-xs font-medium text-[#0A0A0A] uppercase tracking-wider font-mono">Cluster: ${escapeQuotes(g.category_name || 'General')}</h4>
+                  <span class="w-5 h-5 rounded-md bg-[#0A0A0A] text-white text-xs font-mono flex items-center justify-center font-bold">${idx + 1}</span>
+                  <h4 class="text-xs font-semibold text-[#0A0A0A] uppercase tracking-wider font-mono">Cluster: ${escapeQuotes(g.category_name || 'General')}</h4>
+                  <span class="text-[11px] font-mono text-[#71717A]">(${g.count} matches)</span>
                 </div>
-                <span class="text-[11px] font-mono text-[#71717A]">${g.count} total matching products</span>
+                <button 
+                  type="button" 
+                  onclick="executeSmartMerge(${keep.id}, [${dupIdsList.join(',')}])"
+                  class="h-7 px-2.5 rounded-md bg-[#FAFAFA] hover:bg-[#0A0A0A] hover:text-white border border-[#E4E4E7] text-[#0A0A0A] font-mono text-[11px] flex items-center space-x-1.5 transition-colors"
+                  title="Consolidate all duplicates in this cluster into Primary"
+                >
+                  <i data-lucide="git-merge" class="w-3 h-3"></i>
+                  <span>Merge Cluster (${dupIdsList.length})</span>
+                </button>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <!-- Keep Original Card -->
-                <div class="p-3 rounded-md bg-[#FAFAFA] border border-[#E4E4E7]">
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] font-mono uppercase tracking-wider text-[#0A0A0A] flex items-center space-x-1">
-                      <i data-lucide="shield-check" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
-                      <span>Keep (Primary Original)</span>
-                    </span>
-                    <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-[#0A0A0A] text-white">Retained</span>
+                <div class="p-3.5 rounded-md bg-[#FAFAFA] border border-[#0A0A0A] flex flex-col justify-between">
+                  <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                      <span class="text-[10px] font-mono uppercase tracking-wider text-[#0A0A0A] flex items-center space-x-1 font-semibold">
+                        <i data-lucide="shield-check" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+                        <span>Keep (Designated Primary)</span>
+                      </span>
+                      <span class="text-[9px] font-mono px-2 py-0.5 rounded-md bg-[#0A0A0A] text-white font-medium uppercase tracking-wider">Primary</span>
+                    </div>
+                    <div class="flex items-start space-x-3">
+                      <div class="w-16 h-16 rounded-md bg-white border border-[#E4E4E7] flex items-center justify-center overflow-hidden p-1 shrink-0">
+                        <img src="${keepImg}" class="max-h-full max-w-full object-contain" />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <h5 class="text-xs font-semibold text-[#0A0A0A] truncate">${escapeQuotes(keep.name)}</h5>
+                        <p class="text-[11px] text-[#71717A] font-mono mt-0.5">ID #${keep.id} • SKU: ${keep.sku || 'N/A'}</p>
+                        <div class="text-[10px] text-[#71717A] font-mono flex items-center space-x-2 mt-1">
+                          <span>Res: ${keepRes}</span>
+                          ${keepSize ? `<span>• Size: ${keepSize}</span>` : ''}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="flex items-center space-x-3">
-                    <div class="w-12 h-12 rounded-md bg-white border border-[#E4E4E7] flex items-center justify-center overflow-hidden p-1 shrink-0">
-                      <img src="${keepImg}" class="max-h-full max-w-full object-contain" />
-                    </div>
-                    <div class="min-w-0">
-                      <h5 class="text-xs font-medium text-[#0A0A0A] truncate">${escapeQuotes(keep.name)}</h5>
-                      <p class="text-[11px] text-[#71717A] font-mono">ID #${keep.id} • SKU: ${keep.sku || 'N/A'}</p>
-                      <p class="text-[10px] text-[#71717A] font-mono mt-0.5">Retained with all assets</p>
-                    </div>
+                  <div class="mt-3 pt-2 border-t border-[#E4E4E7] text-[10px] text-[#71717A] font-mono flex items-center justify-between">
+                    <span class="flex items-center space-x-1 text-emerald-700 font-medium">
+                      <i data-lucide="check" class="w-3 h-3"></i>
+                      <span>Retained with all connected scenes</span>
+                    </span>
+                    <button type="button" onclick="openStudioModal(${keep.id})" class="text-[#0A0A0A] underline hover:no-underline font-sans">Open in Studio</button>
                   </div>
                 </div>
 
-                <!-- Duplicates to Delete -->
-                <div class="space-y-2">
-                  <div class="text-[10px] font-mono uppercase tracking-wider text-[#E05A47] flex items-center space-x-1 px-1">
-                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-[#E05A47]"></i>
-                    <span>Duplicate Candidates (${g.duplicates.length})</span>
+                <!-- Duplicates Candidates -->
+                <div class="space-y-2.5">
+                  <div class="text-[10px] font-mono uppercase tracking-wider text-[#E05A47] flex items-center justify-between px-1">
+                    <span class="flex items-center space-x-1 font-semibold">
+                      <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-[#E05A47]"></i>
+                      <span>Duplicate Candidates (${g.duplicates.length})</span>
+                    </span>
+                    <span class="text-[#71717A]">Choose action</span>
                   </div>
                   ${dupsHtml}
                 </div>
@@ -2711,12 +4591,83 @@
       }
 
       if (modal) modal.classList.remove('hidden');
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     }
 
     function closeDuplicateCleanupModal() {
       const modal = document.getElementById('duplicateCleanupModal');
       if (modal) modal.classList.add('hidden');
+    }
+
+    async function executeSmartMerge(primaryId, duplicateIds) {
+      if (!duplicateIds || duplicateIds.length === 0) return;
+      showToast(`Smart merging assets into Product #${primaryId}...`, 'info', 2500);
+
+      try {
+        const res = await apiFetch('/api/duplicates/merge', {
+          method: 'POST',
+          body: JSON.stringify({
+            primary_id: primaryId,
+            duplicate_ids: duplicateIds
+          })
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText);
+        }
+
+        const data = await res.json();
+        const mergedCount = (data.merged_ids || []).length;
+        const reclaimedMb = data.reclaimed_mb || 0;
+        showToast(data.message || `Consolidated ${mergedCount} duplicate(s) into Primary #${primaryId} (~${reclaimedMb} MB reclaimed)!`, 'success', 4000);
+
+        // Immediate sync
+        await fetchProducts();
+        await fetchCategories();
+        await checkCatalogDuplicates(activeDuplicateSensitivity, true);
+      } catch (err) {
+        showToast("Smart merge error: " + err.message, 'error');
+      }
+    }
+
+    async function executeSmartMergeAll() {
+      const btn = document.getElementById('modalSmartMergeAllBtn');
+      const text = document.getElementById('modalSmartMergeAllText');
+      if (!catalogDuplicateGroups || catalogDuplicateGroups.length === 0) return;
+
+      if (btn) btn.disabled = true;
+      if (text) text.innerText = "Merging all clusters...";
+
+      try {
+        let totalMerged = 0;
+        for (const grp of catalogDuplicateGroups) {
+          if (!grp.keep || !grp.duplicates || grp.duplicates.length === 0) continue;
+          const dupIds = grp.duplicates.map(d => d.id);
+          const res = await apiFetch('/api/duplicates/merge', {
+            method: 'POST',
+            body: JSON.stringify({
+              primary_id: grp.keep.id,
+              duplicate_ids: dupIds
+            })
+          });
+          if (res.ok) {
+            const d = await res.json();
+            totalMerged += (d.merged_ids || []).length;
+          }
+        }
+
+        showToast(`Successfully smart-merged ${totalMerged} duplicate(s) across all catalog clusters!`, 'success', 4000);
+        closeDuplicateCleanupModal();
+        await fetchProducts();
+        await fetchCategories();
+        await checkCatalogDuplicates(activeDuplicateSensitivity);
+      } catch (err) {
+        showToast("Merge all error: " + err.message, 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+        if (text) text.innerText = "Smart Merge All";
+      }
     }
 
     async function executeOneClickCleanup(specificIds = null) {
@@ -2732,9 +4683,8 @@
 
       try {
         const body = specificIds ? { product_ids: specificIds } : {};
-        const res = await fetch('/api/duplicates/cleanup', {
+        const res = await apiFetch('/api/duplicates/cleanup', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
 
@@ -2747,14 +4697,291 @@
         // Immediate refresh of catalog, categories, and duplicate audits
         await fetchProducts();
         await fetchCategories();
-        await checkCatalogDuplicates();
+        await checkCatalogDuplicates(activeDuplicateSensitivity);
       } catch (err) {
         showToast("Duplicate cleanup error: " + err.message, 'error');
       } finally {
         if (bannerBtn) bannerBtn.disabled = false;
         if (modalBtn) modalBtn.disabled = false;
         if (bannerText) bannerText.innerText = "Delete All Duplicates (1-Click)";
-        if (modalText) modalText.innerText = "Delete All Duplicates (1-Click)";
+        if (modalText) modalText.innerText = "Purge All Duplicates";
+      }
+    }
+
+    // =========================================================================
+    // AI PRODUCT STUDIO GENERATOR FUNCTIONS
+    // =========================================================================
+    function openAiProductModal() {
+      const modal = document.getElementById('aiProductModal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+
+      // Populate category dropdown from loaded categories
+      const catSelect = document.getElementById('aiProductCategory');
+      if (catSelect) {
+        catSelect.innerHTML = '<option value="">Auto-Detect from Prompt</option>';
+        if (window.categoriesList && Array.isArray(window.categoriesList)) {
+          window.categoriesList.forEach(c => {
+            catSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+          });
+        }
+      }
+
+      // Reset notice
+      const notice = document.getElementById('aiPromptEnhanceNotice');
+      if (notice) notice.classList.add('hidden');
+
+      // Auto-focus prompt input
+      setTimeout(() => {
+        const promptInput = document.getElementById('aiProductPrompt');
+        if (promptInput) promptInput.focus();
+        if (window.lucide) lucide.createIcons();
+      }, 100);
+    }
+
+    function closeAiProductModal() {
+      const modal = document.getElementById('aiProductModal');
+      if (modal) modal.classList.add('hidden');
+      const notice = document.getElementById('aiPromptEnhanceNotice');
+      if (notice) notice.classList.add('hidden');
+    }
+
+    function setAiPrompt(promptText, categoryHint = null) {
+      const promptInput = document.getElementById('aiProductPrompt');
+      if (promptInput) {
+        promptInput.value = promptText;
+      }
+      const notice = document.getElementById('aiPromptEnhanceNotice');
+      if (notice) notice.classList.add('hidden');
+
+      if (categoryHint && window.categoriesList) {
+        const catSelect = document.getElementById('aiProductCategory');
+        if (catSelect) {
+          const match = window.categoriesList.find(c => 
+            c.name.toLowerCase().includes(categoryHint) || (c.slug && c.slug.includes(categoryHint))
+          );
+          if (match) catSelect.value = match.id;
+        }
+      }
+      if (window.GlitchProgress) window.GlitchProgress.triggerGlitchBurst();
+    }
+
+    let previousRawPrompt = null;
+
+    async function enhanceAiPrompt() {
+      const promptInput = document.getElementById('aiProductPrompt');
+      const nameInput = document.getElementById('aiProductName');
+      const catSelect = document.getElementById('aiProductCategory');
+      const presetRadio = document.querySelector('input[name="aiStylePreset"]:checked');
+      const btn = document.getElementById('btnEnhanceAiPrompt');
+      const notice = document.getElementById('aiPromptEnhanceNotice');
+      const noticeSummary = document.getElementById('aiPromptEnhanceSummary');
+
+      const rawPrompt = promptInput?.value.trim();
+      if (!rawPrompt) {
+        showToast('Please enter a product description first (e.g. "Nike shoes" or "Gaming backpack")', 'warning');
+        if (promptInput) promptInput.focus();
+        return;
+      }
+
+      const stylePreset = presetRadio?.value || 'studio';
+      previousRawPrompt = promptInput.value;
+
+      if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-80', 'cursor-not-allowed');
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-amber-300"></i><span>Enhancing...</span>`;
+        if (window.lucide) lucide.createIcons();
+      }
+
+      try {
+        const resp = await apiFetch('/api/ai/enhance-prompt', {
+          method: 'POST',
+          body: JSON.stringify({
+            prompt: rawPrompt,
+            style_preset: stylePreset
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || 'Prompt enhancement failed');
+        }
+
+        const data = await resp.json();
+
+        if (data.enhanced_prompt) {
+          promptInput.value = data.enhanced_prompt;
+
+          // Glowing feedback animation on textarea
+          promptInput.classList.add('ring-2', 'ring-emerald-500', 'bg-emerald-50/20');
+          setTimeout(() => {
+            promptInput.classList.remove('ring-2', 'ring-emerald-500', 'bg-emerald-50/20');
+          }, 1400);
+
+          // Auto-fill title if empty
+          if (nameInput && (!nameInput.value || !nameInput.value.trim())) {
+            if (data.title) nameInput.value = data.title;
+          }
+
+          // Auto-select category if matching
+          const catHint = data.category_hint || data.domain;
+          if (catHint && window.categoriesList && catSelect) {
+            const match = window.categoriesList.find(c => 
+              c.name.toLowerCase().includes(catHint.toLowerCase()) || 
+              (c.slug && c.slug.toLowerCase().includes(catHint.toLowerCase()))
+            );
+            if (match) catSelect.value = match.id;
+          }
+
+          if (notice && noticeSummary) {
+            const domainBadge = document.getElementById('aiPromptEnhanceDomain');
+            if (domainBadge && data.domain) {
+              domainBadge.textContent = data.domain.toUpperCase();
+            }
+            noticeSummary.textContent = data.summary || 'Prompt extended with commercial materials, lighting, and camera angle for 100% accuracy';
+            notice.classList.remove('hidden');
+          }
+
+          if (window.GlitchProgress) window.GlitchProgress.triggerGlitchBurst();
+          showToast('Prompt enhanced with commercial studio specifications for 100% accuracy!', 'success');
+        }
+      } catch (err) {
+        console.error('Enhance Prompt Error:', err);
+        showToast(`Prompt enhancement error: ${err.message}`, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('opacity-80', 'cursor-not-allowed');
+          btn.innerHTML = `<i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-300 group-hover:rotate-12 transition-transform"></i><span>Prompt Enhancer</span><span class="text-[9px] font-mono px-1 py-0.2 rounded bg-white/20 text-white ml-0.5 font-semibold">AI</span>`;
+          if (window.lucide) lucide.createIcons();
+        }
+      }
+    }
+
+    function revertAiPrompt() {
+      const promptInput = document.getElementById('aiProductPrompt');
+      const notice = document.getElementById('aiPromptEnhanceNotice');
+      if (promptInput && previousRawPrompt !== null) {
+        promptInput.value = previousRawPrompt;
+        showToast('Restored previous prompt', 'info');
+      }
+      if (notice) notice.classList.add('hidden');
+    }
+
+    async function enhanceStudioAtmospherePrompt() {
+      const input = document.getElementById('studioCustomPrompt');
+      const val = input?.value.trim();
+      if (!val) {
+        showToast('Please enter an atmospheric scene description first (e.g. "dark stone with water ripples")', 'warning');
+        if (input) input.focus();
+        return;
+      }
+      try {
+        const resp = await apiFetch('/api/ai/enhance-prompt', {
+          method: 'POST',
+          body: JSON.stringify({
+            prompt: `commercial studio atmospheric backdrop: ${val}`,
+            style_preset: 'studio'
+          })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.enhanced_prompt) {
+            input.value = data.enhanced_prompt;
+            showToast('Atmospheric prompt enhanced!', 'success');
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function submitAiProductGeneration() {
+      const promptInput = document.getElementById('aiProductPrompt');
+      const nameInput = document.getElementById('aiProductName');
+      const catSelect = document.getElementById('aiProductCategory');
+      const presetRadio = document.querySelector('input[name="aiStylePreset"]:checked');
+      const btn = document.getElementById('btnSubmitAiGenerate');
+
+      const prompt = promptInput?.value.trim();
+      if (!prompt) {
+        showToast('Please enter a product description prompt', 'warning');
+        if (promptInput) promptInput.focus();
+        return;
+      }
+
+      const productName = nameInput?.value.trim() || null;
+      const stylePreset = presetRadio?.value || 'studio';
+      const categoryId = catSelect?.value ? parseInt(catSelect.value) : null;
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i><span>Synthesizing...</span>`;
+        if (window.lucide) lucide.createIcons();
+      }
+
+      // Activate Editorial Luxury Glitch Progress HUD
+      if (window.GlitchProgress) {
+        window.GlitchProgress.start(
+          "Studio Diffusion Sampling...", 
+          6000, 
+          "SYNTHESIZING COMMERCIAL PRODUCT SHOT & BIREFNET ALPHA MASK"
+        );
+      }
+
+      try {
+        const resp = await apiFetch('/api/ai/generate-product', {
+          method: 'POST',
+          body: JSON.stringify({
+            prompt: prompt,
+            product_name: productName,
+            style_preset: stylePreset,
+            category_id: categoryId,
+            aspect_ratio: '1:1'
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'Generation failed');
+        }
+
+        const data = await resp.json();
+        closeAiProductModal();
+
+        if (window.GlitchProgress) {
+          window.GlitchProgress.done("PRODUCT SYNTHESIZED");
+        }
+
+        showToast(`Successfully synthesized "${data.product.name}" in ${data.product.category_name || 'Catalog'}!`, 'success');
+
+        // Refresh catalog and categories for authenticated user
+        await fetchCategories();
+        await fetchProducts();
+
+        // Switch to catalog view so the user sees their new product immediately
+        switchView('catalog');
+
+        // Reset form inputs
+        if (promptInput) promptInput.value = '';
+        if (nameInput) nameInput.value = '';
+        const notice = document.getElementById('aiPromptEnhanceNotice');
+        if (notice) notice.classList.add('hidden');
+        previousRawPrompt = null;
+
+      } catch (err) {
+        console.error('AI Product Generation Error:', err);
+        if (window.GlitchProgress) {
+          window.GlitchProgress.fail("GENERATION FAILED");
+        }
+        showToast(`Generation failed: ${err.message}`, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="sparkles" class="w-3.5 h-3.5 text-zinc-100"></i><span>Generate & Ingest Product</span>`;
+          if (window.lucide) lucide.createIcons();
+        }
       }
     }
 
@@ -2783,7 +5010,7 @@
 
     async function openEditProductModal(id) {
       try {
-        const res = await fetch(`/api/products/${id}`);
+        const res = await apiFetch(`/api/products/${id}`);
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         const p = data.product;
@@ -2823,12 +5050,22 @@
 
       detectCatDebounce = setTimeout(async () => {
         try {
+          const payload = { name: val.trim() };
+          if (modalSelectedFile && modalSelectedFile.name) {
+            payload.filename = modalSelectedFile.name;
+          }
           const res = await fetch('/api/detect-category', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: val.trim() })
+            body: JSON.stringify(payload)
           });
           const data = await res.json();
+          if (data.suggested_title) {
+            const nameInput = document.getElementById('prodNameInput');
+            if (nameInput && (nameInput.value === val || !nameInput.value.trim())) {
+              nameInput.value = data.suggested_title;
+            }
+          }
           if (data.category_name && badge) {
             badge.classList.remove('hidden');
             if (data.is_new) {
@@ -2884,7 +5121,7 @@
       try {
         if (id) {
           // Update existing
-          const res = await fetch(`/api/products/${id}`, {
+          const res = await apiFetch(`/api/products/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, category_id: parseInt(category_id), sku, tags })
@@ -2904,7 +5141,7 @@
           if (sku) formData.append('sku', sku);
           if (tags) formData.append('tags', tags);
 
-          const res = await fetch('/api/upload/product', {
+          const res = await apiFetch('/api/upload/product', {
             method: 'POST',
             body: formData
           });
@@ -2929,7 +5166,7 @@
       const prodLabel = name ? `product "${name}"` : "this product";
       if (!confirm(`Are you sure you want to delete ${prodLabel}?\n\nAll child records, camera angles, and generated commercial scenes will be permanently deleted from disk.`)) return;
       try {
-        const res = await fetch(`/api/products/${id}?remove_files=true`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/products/${id}?remove_files=true`, { method: 'DELETE' });
         if (!res.ok) throw new Error(await res.text());
         showToast(`Product deleted successfully from catalog and disk.`, 'success');
         await fetchProducts();
@@ -2947,7 +5184,7 @@
 
     async function openStudioModal(productId, initialTab = 'matting', autoRunMatting = false) {
       try {
-        const res = await fetch(`/api/products/${productId}`);
+        const res = await apiFetch(`/api/products/${productId}`);
         const data = await res.json();
         currentStudioProduct = data.product;
 
@@ -2982,11 +5219,25 @@
           cutoutStatusBadge.innerText = "Needs Background Removal";
         }
 
-        // Reset stylize plate preview
+        // Populate or reset stylize plate preview
         const stImg = document.getElementById('studioStylizeResultImg');
         const stPl = document.getElementById('studioStylizePlaceholder');
-        if (stImg) { stImg.src = ''; stImg.classList.add('hidden'); }
-        if (stPl) { stPl.classList.remove('hidden'); }
+        const stActions = document.getElementById('studioStylizeActions');
+        const stOpen = document.getElementById('studioStylizeOpenLink');
+
+        if (currentStudioProduct.rendered_scene_url) {
+          if (stImg) { stImg.src = currentStudioProduct.rendered_scene_url; stImg.classList.remove('hidden'); }
+          if (stPl) { stPl.classList.add('hidden'); }
+          if (stActions) { stActions.classList.remove('hidden'); }
+          if (stOpen) { stOpen.href = currentStudioProduct.rendered_scene_url; }
+          if (currentStudioProduct.selected_preset) {
+            selectStudioPreset(currentStudioProduct.selected_preset);
+          }
+        } else {
+          if (stImg) { stImg.src = ''; stImg.classList.add('hidden'); }
+          if (stPl) { stPl.classList.remove('hidden'); }
+          if (stActions) { stActions.classList.add('hidden'); }
+        }
 
         const validTabs = ['matting', 'angles', 'stylize', 'export'];
         const targetTab = validTabs.includes(initialTab) ? initialTab : 'matting';
@@ -3041,6 +5292,7 @@
       }
 
       if (tab === 'angles') loadStudioAngles();
+      if (tab === 'export') updateExportBackgroundUI();
       lucide.createIcons();
     }
 
@@ -3050,6 +5302,10 @@
       const text = document.getElementById('studioRunMattingText');
       if (btn) btn.disabled = true;
       if (text) text.innerText = "Removing Background (BiRefNet)...";
+
+      if (window.GlitchProgress) {
+        window.GlitchProgress.start("Extracting Studio Cutout...", 4500, "BIREFNET NEURAL ALPHA MATTING");
+      }
 
       const badge = document.getElementById('studioCutoutStatusBadge');
       if (badge) {
@@ -3066,9 +5322,13 @@
       lucide.createIcons();
 
       try {
-        const res = await fetch(`/api/products/${currentStudioProduct.id}/remove-bg`, { method: 'POST' });
+        const res = await apiFetch(`/api/products/${currentStudioProduct.id}/remove-bg`, { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
+        
+        if (window.GlitchProgress) {
+          window.GlitchProgress.done("CUTOUT READY");
+        }
         
         currentStudioProduct = data.product;
         if (loader) loader.classList.add('hidden');
@@ -3117,7 +5377,7 @@
       const baseName = currentStudioProduct.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
 
       try {
-        const res = await fetch(`/api/products/${currentStudioProduct.id}/angles`);
+        const res = await apiFetch(`/api/products/${currentStudioProduct.id}/angles`);
         const data = await res.json();
 
         if (data.has_angles && data.views && data.views.length > 0) {
@@ -3293,12 +5553,20 @@
       }
       showToast(`Synthesizing 6 canonical commercial camera perspectives for "${currentStudioProduct.name}"...`, 'info', 4000);
 
+      if (window.GlitchProgress) {
+        window.GlitchProgress.start("Synthesizing 3D Perspectives...", 8000, "6 CANONICAL CAMERAS & TURNTABLE");
+      }
+
       try {
-        const res = await fetch(`/api/products/${currentStudioProduct.id}/generate-angles`, {
+        const res = await apiFetch(`/api/products/${currentStudioProduct.id}/generate-angles`, {
           method: 'POST'
         });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
+
+        if (window.GlitchProgress) {
+          window.GlitchProgress.done("3D PERSPECTIVES READY");
+        }
 
         if (data.product) currentStudioProduct = data.product;
         const views = data.views || data.angles || [];
@@ -3313,6 +5581,9 @@
         showToast(`Successfully synthesized 6 perspectives for "${currentStudioProduct.name}"!`, 'success', 3000);
         await fetchProducts();
       } catch (err) {
+        if (window.GlitchProgress) {
+          window.GlitchProgress.fail("SYNTHESIS FAILED");
+        }
         showToast("Failed to generate angles: " + err.message, 'error', 4000);
       } finally {
         if (btn) {
@@ -3344,17 +5615,37 @@
       btn.disabled = true;
       text.innerText = "Synthesizing Studio Scene...";
 
+      if (window.GlitchProgress) {
+        window.GlitchProgress.start("Compositing Studio Scene...", 3500, "STUDIO LIGHTING, PEDESTAL & REFLECTIONS");
+      }
+
       const customPrompt = document.getElementById('studioCustomPrompt').value.trim();
+      const contactShadow = document.getElementById('shadowContactToggle')?.checked ?? true;
+      const dropShadow = document.getElementById('shadowDropToggle')?.checked ?? true;
+      const lightAngle = parseFloat(document.getElementById('shadowAngleSlider')?.value ?? -60);
+      const shadowDistance = parseFloat(document.getElementById('shadowDistanceSlider')?.value ?? 25);
+      const shadowBlur = parseFloat(document.getElementById('shadowBlurSlider')?.value ?? 16);
+      const shadowIntensity = parseFloat(document.getElementById('shadowIntensitySlider')?.value ?? 0.6);
+      const colorToneMatch = document.getElementById('colorToneMatchToggle')?.checked ?? true;
+      const colorMatchIntensity = parseFloat(document.getElementById('colorToneIntensitySlider')?.value ?? 0.70);
 
       try {
-        const res = await fetch(`/api/products/${currentStudioProduct.id}/stylize`, {
+        const res = await apiFetch(`/api/products/${currentStudioProduct.id}/stylize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             cutout_filename: cutout,
             preset_id: selectedStudioPreset,
             aspect_ratio: "1:1",
-            custom_prompt: customPrompt || null
+            custom_prompt: customPrompt || null,
+            shadow_intensity: shadowIntensity,
+            contact_shadow: contactShadow,
+            drop_shadow: dropShadow,
+            light_angle_deg: lightAngle,
+            shadow_distance: shadowDistance,
+            shadow_blur: shadowBlur,
+            color_tone_match: colorToneMatch,
+            color_match_intensity: colorMatchIntensity
           })
         });
 
@@ -3362,21 +5653,94 @@
         const data = await res.json();
         const renderUrl = data.url || data.output_url || data.file_url;
 
+        if (window.GlitchProgress) {
+          window.GlitchProgress.done("SCENE COMPOSITED");
+        }
+
         if (renderUrl) {
+          currentStudioProduct.rendered_scene_url = renderUrl;
+          currentStudioProduct.rendered_scene_filename = renderUrl.split('/').pop();
+          currentStudioProduct.selected_preset = selectedStudioPreset;
+
           document.getElementById('studioStylizePlaceholder').classList.add('hidden');
           const img = document.getElementById('studioStylizeResultImg');
           img.src = renderUrl;
           img.classList.remove('hidden');
+
+          const actionsEl = document.getElementById('studioStylizeActions');
+          if (actionsEl) actionsEl.classList.remove('hidden');
+          const openLink = document.getElementById('studioStylizeOpenLink');
+          if (openLink) openLink.href = renderUrl;
+
+          updateExportBackgroundUI();
         }
 
         btn.disabled = false;
         text.innerText = "Commercial Photo Rendered!";
-        showToast("Commercial scene successfully synthesized & rendered!", 'success');
+        showToast("Commercial scene successfully synthesized & rendered with styling!", 'success');
         setTimeout(() => { text.innerText = "Render Commercial Photo"; }, 2000);
       } catch (err) {
         btn.disabled = false;
         text.innerText = "Render Commercial Photo";
         showToast("Stylize failed: " + err, 'error');
+      }
+    }
+
+    // Direct Download for Rendered Lookbook Plate
+    function downloadCurrentStyledPlate() {
+      if (!currentStudioProduct || !currentStudioProduct.rendered_scene_url) {
+        showToast("Please render a lookbook plate first.", 'warning');
+        return;
+      }
+      const url = currentStudioProduct.rendered_scene_url;
+      const preset = currentStudioProduct.selected_preset || selectedStudioPreset || 'style';
+      const base = currentAngleProduct || 'product';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${base}_styled_${preset}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast("Downloading styled lookbook plate with background!", 'success');
+    }
+
+    function onExportBgSourceChange(src) {
+      document.querySelectorAll('.export-bg-option').forEach(el => {
+        el.className = "flex flex-col p-2.5 rounded-md border border-[#E4E4E7] bg-[#FAFAFA] cursor-pointer transition-all export-bg-option";
+      });
+      const activeEl = document.getElementById(`exportBgOpt_${src}`);
+      if (activeEl) {
+        activeEl.className = "flex flex-col p-2.5 rounded-md border border-[#0A0A0A] bg-white cursor-pointer transition-all export-bg-option";
+      }
+      const radio = document.querySelector(`input[name="exportBgSource"][value="${src}"]`);
+      if (radio) radio.checked = true;
+
+      const badge = document.getElementById('exportBgActiveBadge');
+      if (badge) {
+        if (src === 'styled') badge.innerText = "Applied Style";
+        else if (src === 'white') badge.innerText = "Studio White";
+        else badge.innerText = "Transparent PNG";
+      }
+    }
+
+    function updateExportBackgroundUI() {
+      const presetNames = {
+        white: "Studio Pure White",
+        podium: "Ceramic Pedestal",
+        marble: "Carrara Marble",
+        wood: "Nordic Timber",
+        nature: "Botanical Stone"
+      };
+      const activePreset = (currentStudioProduct && currentStudioProduct.selected_preset) || selectedStudioPreset || 'marble';
+      const presetLabel = presetNames[activePreset] || activePreset;
+      const styledLabelEl = document.getElementById('exportBgStyledLabel');
+      if (styledLabelEl) {
+        styledLabelEl.innerText = (currentStudioProduct && currentStudioProduct.rendered_scene_url) ? `${presetLabel} (Ready)` : `${presetLabel}`;
+      }
+
+      // Default to styled if rendered or active
+      if (currentStudioProduct && currentStudioProduct.rendered_scene_url) {
+        onExportBgSourceChange('styled');
       }
     }
 
@@ -3439,13 +5803,35 @@
 
     async function executeExportDownload() {
       if (!currentStudioProduct) return;
-      const src = currentStudioProduct.cutout_url || currentStudioProduct.raw_url;
-      if (!src) {
-        showToast("No source image available for export.", 'warning');
+
+      const bgSource = document.querySelector('input[name="exportBgSource"]:checked')?.value || 'styled';
+      let sourceFilename = null;
+      let exportBgColor = "white";
+      let presetToPass = null;
+
+      if (bgSource === 'styled') {
+        if (currentStudioProduct.rendered_scene_url) {
+          sourceFilename = currentStudioProduct.rendered_scene_url.split('/').pop();
+        } else if (currentStudioProduct.cutout_url) {
+          sourceFilename = currentStudioProduct.cutout_url.split('/').pop();
+          presetToPass = currentStudioProduct.selected_preset || selectedStudioPreset || 'marble';
+        } else {
+          sourceFilename = currentStudioProduct.raw_url ? currentStudioProduct.raw_url.split('/').pop() : null;
+        }
+        exportBgColor = "white";
+      } else if (bgSource === 'white') {
+        sourceFilename = currentStudioProduct.cutout_url ? currentStudioProduct.cutout_url.split('/').pop() : (currentStudioProduct.raw_url ? currentStudioProduct.raw_url.split('/').pop() : null);
+        exportBgColor = "white";
+      } else { // transparent
+        sourceFilename = currentStudioProduct.cutout_url ? currentStudioProduct.cutout_url.split('/').pop() : null;
+        exportBgColor = "transparent";
+      }
+
+      if (!sourceFilename) {
+        showToast("No source asset available for export.", 'warning');
         return;
       }
 
-      const filename = src.split('/').pop();
       const ratio = document.querySelector('input[name="exportRatio"]:checked').value;
       const dpi = parseInt(document.getElementById('exportDpiSelect').value);
       const autoEnhance = document.getElementById('studioAutoEnhance').checked;
@@ -3453,6 +5839,8 @@
       const contrast = parseFloat(document.getElementById('slider_contrast').value);
       const saturation = parseFloat(document.getElementById('slider_saturation').value);
       const sharpness = parseFloat(document.getElementById('slider_sharpness').value);
+      const upscaleVal = parseInt(document.querySelector('input[name="exportUpscale"]:checked')?.value || '1');
+      const preserveText = document.getElementById('exportPreserveTextToggle')?.checked ?? true;
 
       const btn = document.getElementById('executeExportBtn');
       const text = document.getElementById('executeExportBtnText');
@@ -3460,19 +5848,23 @@
       text.innerText = "Rendering Commercial Export...";
 
       try {
-        const res = await fetch('/api/export', {
+        const res = await apiFetch('/api/export', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            source_image: filename,
+            source_image: sourceFilename,
             output_format: selectedExportFormat,
             aspect_ratio: ratio,
             dpi: dpi,
+            background_color: exportBgColor,
+            preset_id: presetToPass,
             auto_enhance: autoEnhance,
             brightness: brightness,
             contrast: contrast,
             saturation: saturation,
-            sharpness: sharpness
+            sharpness: sharpness,
+            upscale_factor: (upscaleVal > 1 ? upscaleVal : null),
+            preserve_text: preserveText
           })
         });
 
@@ -3489,11 +5881,11 @@
 
         btn.disabled = false;
         text.innerText = `Downloaded ${data.width}x${data.height} ${data.format} (${data.size_kb} KB)`;
-        showToast(`Downloaded ${data.width}x${data.height} ${data.format} (${data.size_kb} KB)`, 'success');
-        setTimeout(() => { text.innerText = "Export & Download Image"; }, 3000);
+        showToast(`Downloaded ${data.width}x${data.height} ${data.format} with styled background!`, 'success');
+        setTimeout(() => { text.innerText = "Render & Download Asset"; }, 3000);
       } catch (err) {
         btn.disabled = false;
-        text.innerText = "Export & Download Image";
+        text.innerText = "Render & Download Asset";
         showToast("Export failed: " + err, 'error');
       }
     }
@@ -3503,7 +5895,7 @@
     // =========================================================================
     async function fetchScenes() {
       try {
-        const res = await fetch('/api/scenes');
+        const res = await apiFetch('/api/scenes');
         const data = await res.json();
         const scenes = data.scenes || [];
         document.getElementById('scenesCountBadge').innerText = scenes.length;
@@ -3540,8 +5932,8 @@
     async function fetchAnglesList() {
       try {
         const [anglesRes, prodRes] = await Promise.all([
-          fetch('/api/angles'),
-          fetch('/api/products')
+          apiFetch('/api/angles'),
+          apiFetch('/api/products')
         ]);
         const anglesData = await anglesRes.json();
         const prodData = await prodRes.json();
@@ -3591,7 +5983,7 @@
       if (select && select.value !== baseName) select.value = baseName;
 
       try {
-        const res = await fetch('/api/angles');
+        const res = await apiFetch('/api/angles');
         const data = await res.json();
         const sets = data.angle_sets || [];
         const found = sets.find(s => 
@@ -3833,7 +6225,7 @@
       showToast(`Synthesizing 6 canonical perspectives for "${currentAngleProduct}"...`, 'info', 3000);
 
       try {
-        const res = await fetch('/api/generate-angles', {
+        const res = await apiFetch('/api/generate-angles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ base_name: currentAngleProduct })
@@ -3859,7 +6251,7 @@
       if (btn) btn.disabled = true;
       showToast("Scanning project folder for new images...", "info", 2000);
       try {
-        const res = await fetch('/api/sync', { method: 'POST' });
+        const res = await apiFetch('/api/sync', { method: 'POST' });
         const data = await res.json();
         const count = data.result ? data.result.total_new : 0;
         if (count > 0) {
@@ -3883,7 +6275,7 @@
       if (text) text.innerText = "Checking...";
 
       try {
-        const res = await fetch('/api/process', { method: 'POST' });
+        const res = await apiFetch('/api/process', { method: 'POST' });
         const data = await res.json();
 
         if (data.total_queued === 0) {
@@ -4003,9 +6395,509 @@
       } catch (e) {}
     }
 
-    function escapeQuotes(str) {
-      return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    // =========================================================================
+    // NEW FEATURES: Artificial Shadow, Color Match, AI Upscaling & Mobile Camera
+    // =========================================================================
+    function updateShadowAngleDisplay(val) {
+      const angle = parseInt(val);
+      const badge = document.getElementById('shadowAngleBadge');
+      if (!badge) return;
+      let label = `${angle}°`;
+      if (angle >= -75 && angle <= -45) label = `Top-Left (${angle}°)`;
+      else if (angle > -105 && angle < -75) label = `Overhead (${angle}°)`;
+      else if (angle >= -45 && angle <= -15) label = `Top-Right (${angle}°)`;
+      else if (angle > -15 && angle < 15) label = `Side Right (${angle}°)`;
+      else if (angle >= 15 && angle <= 75) label = `Bottom-Right (${angle}°)`;
+      else if (angle > 75 && angle < 105) label = `Bottom Foot (${angle}°)`;
+      else if (angle >= 105 && angle <= 165) label = `Bottom-Left (${angle}°)`;
+      else label = `Side Left (${angle}°)`;
+      badge.innerText = label;
     }
+
+    async function applyStudioShadowOnly() {
+      if (!currentStudioProduct) {
+        showToast("Please open a product in Studio first.", 'warning');
+        return;
+      }
+      const cutout = currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop() : null;
+      if (!cutout) {
+        showToast("Please remove background first on Tab 1.", 'warning');
+        return;
+      }
+
+      const contact = document.getElementById('shadowContactToggle')?.checked ?? true;
+      const drop = document.getElementById('shadowDropToggle')?.checked ?? true;
+      const angle = parseFloat(document.getElementById('shadowAngleSlider')?.value ?? -60);
+      const dist = parseFloat(document.getElementById('shadowDistanceSlider')?.value ?? 25);
+      const blur = parseFloat(document.getElementById('shadowBlurSlider')?.value ?? 16);
+      const intensity = parseFloat(document.getElementById('shadowIntensitySlider')?.value ?? 0.6);
+
+      showToast("Synthesizing artificial contact & directional shadows...", 'info', 2000);
+
+      try {
+        const res = await apiFetch('/api/shadow/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cutout_filename: cutout,
+            product_id: currentStudioProduct.id,
+            contact_shadow: contact,
+            drop_shadow: drop,
+            light_angle_deg: angle,
+            shadow_distance: dist,
+            shadow_blur: blur,
+            contact_intensity: 0.85,
+            drop_intensity: intensity,
+            background_type: "transparent"
+          })
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        if (data.url) {
+          const img = document.getElementById('studioStylizeResultImg');
+          if (img) {
+            img.src = data.url;
+            img.classList.remove('hidden');
+          }
+          const ph = document.getElementById('studioStylizePlaceholder');
+          if (ph) ph.classList.add('hidden');
+          const actions = document.getElementById('studioStylizeActions');
+          if (actions) actions.classList.remove('hidden');
+          const link = document.getElementById('studioStylizeOpenLink');
+          if (link) link.href = data.url;
+          currentStudioProduct.rendered_scene_url = data.url;
+          showToast("Artificial shadow synthesized & rendered!", 'success');
+        }
+      } catch (err) {
+        showToast("Shadow generation failed: " + err, 'error');
+      }
+    }
+
+    async function applyStudioToneMatchOnly() {
+      if (!currentStudioProduct) {
+        showToast("Please select a product first.", 'warning');
+        return;
+      }
+      const cutout = currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop() : null;
+      if (!cutout) {
+        showToast("Please remove background first on Tab 1.", 'warning');
+        return;
+      }
+
+      const intensity = parseFloat(document.getElementById('colorToneIntensitySlider')?.value ?? 0.7);
+      const rimBleed = document.getElementById('colorToneRimBleedToggle')?.checked ?? true;
+
+      showToast("Harmonizing white balance & atmosphere...", 'info', 2000);
+
+      try {
+        const res = await apiFetch('/api/color-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_image: cutout,
+            preset_id: selectedStudioPreset,
+            blend_intensity: intensity,
+            preserve_luminance: true,
+            edge_light_bleed: rimBleed,
+            product_id: currentStudioProduct.id
+          })
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        if (data.url) {
+          const img = document.getElementById('studioStylizeResultImg');
+          if (img) {
+            img.src = data.url;
+            img.classList.remove('hidden');
+          }
+          const ph = document.getElementById('studioStylizePlaceholder');
+          if (ph) ph.classList.add('hidden');
+          const actions = document.getElementById('studioStylizeActions');
+          if (actions) actions.classList.remove('hidden');
+          const link = document.getElementById('studioStylizeOpenLink');
+          if (link) link.href = data.url;
+          showToast("Color tone matched to scene atmosphere!", 'success');
+        }
+      } catch (err) {
+        showToast("Tone match failed: " + err, 'error');
+      }
+    }
+
+    async function runStandaloneUpscaleFromExport() {
+      if (!currentStudioProduct) {
+        showToast("Please select a product first.", 'warning');
+        return;
+      }
+      const source = currentStudioProduct.rendered_scene_url ? 
+        currentStudioProduct.rendered_scene_url.split('/').pop() : 
+        (currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop() : null);
+
+      if (!source) {
+        showToast("No source asset available to upscale.", 'warning');
+        return;
+      }
+
+      const scale = parseInt(document.querySelector('input[name="exportUpscale"]:checked')?.value || '2');
+      const factor = (scale > 1) ? scale : 2;
+      const preserve = document.getElementById('exportPreserveTextToggle')?.checked ?? true;
+
+      showToast(`Running AI ${factor}x Super-Resolution (Preserving Labels)...`, 'info', 3000);
+
+      try {
+        const res = await apiFetch('/api/upscale', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_image: source,
+            scale_factor: factor,
+            preserve_text: preserve,
+            product_id: currentStudioProduct.id
+          })
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+
+        // Download directly
+        const a = document.createElement('a');
+        a.href = data.file_url;
+        a.download = data.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        showToast(`AI ${factor}x upscale complete! (${data.upscaled_size[0]}×${data.upscaled_size[1]} px in ${data.elapsed_ms}ms)`, 'success', 5000);
+      } catch (err) {
+        showToast("Upscaling failed: " + err, 'error');
+      }
+    }
+
+    // --- Mobile Camera Uploading & Live Viewfinder ---
+    let cameraStream = null;
+    let cameraFacingMode = "environment";
+
+    function triggerMobileCameraOrModal() {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        openCameraModal();
+      } else {
+        const inp = document.getElementById('mobileCameraInput');
+        if (inp) inp.click();
+      }
+    }
+
+    async function openCameraModal() {
+      const modal = document.getElementById('cameraModal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+
+      try {
+        await startCameraStream();
+      } catch (err) {
+        console.warn("Could not start live stream, falling back to camera input:", err);
+        closeCameraModal();
+        const inp = document.getElementById('mobileCameraInput');
+        if (inp) inp.click();
+      }
+    }
+
+    async function startCameraStream() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+      }
+      const video = document.getElementById('cameraVideo');
+      const constraints = {
+        video: {
+          facingMode: { ideal: cameraFacingMode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      };
+      cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (video) {
+        video.srcObject = cameraStream;
+        await video.play();
+      }
+      lucide.createIcons();
+    }
+
+    function flipCameraFacing() {
+      cameraFacingMode = (cameraFacingMode === "environment") ? "user" : "environment";
+      startCameraStream().catch(e => console.error("Camera flip error:", e));
+    }
+
+    function closeCameraModal() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+      }
+      const modal = document.getElementById('cameraModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function snapCameraPhoto() {
+      const video = document.getElementById('cameraVideo');
+      const canvas = document.getElementById('cameraCanvas');
+      const flash = document.getElementById('cameraFlash');
+      if (!video || !canvas) return;
+
+      // Flash feedback
+      if (flash) {
+        flash.style.opacity = "1";
+        setTimeout(() => { flash.style.opacity = "0"; }, 150);
+      }
+
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const filename = `camera_product_${Date.now()}.jpg`;
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        
+        closeCameraModal();
+        showToast("Camera snap captured! Ingesting photographic asset...", 'info', 3000);
+        await handleMultipleUpload([file]);
+      }, 'image/jpeg', 0.95);
+    }
+
+    // --- PWA Service Worker Registration ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[PWA] Service Worker active:', reg.scope))
+          .catch(err => console.log('[PWA] Service Worker reg failed:', err));
+      });
+    }
+
   </script>
+
+  <!-- =========================================================================
+       AUTH OVERLAY — Login & Register
+  ========================================================================= -->
+  <div id="authOverlay">
+    <div class="auth-card" style="position:relative;z-index:1">
+      <!-- Luxury Shimmer Rail (Matches HUD progress bar vibe) -->
+      <div class="luxury-glitch-rail" style="height:3px;width:100%"></div>
+
+      <!-- Card Header: Logo + Title + Tabs -->
+      <div class="auth-card-header">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:40px;height:40px;border-radius:10px;background:#0A0A0A;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.12)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <div>
+              <div class="font-editorial" style="font-size:18px;font-weight:700;color:#0A0A0A;line-height:1.2;letter-spacing:-0.01em">Studio Edition</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#71717A;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">AI Product Commerce Hub</div>
+            </div>
+          </div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#71717A;background:#FAFAFA;border:1px solid #E4E4E7;padding:2px 7px;border-radius:5px">[ v2.4 ]</span>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div style="display:flex;gap:3px;background:#F4F4F5;padding:3px;border-radius:10px;border:1px solid #E4E4E7">
+          <button id="authTabLogin" class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
+          <button id="authTabRegister" class="auth-tab" onclick="switchAuthTab('register')">Create Account</button>
+        </div>
+      </div>
+
+      <!-- Card Body -->
+      <div class="auth-card-body">
+
+        <!-- Login Form -->
+        <form id="loginForm" autocomplete="off" onsubmit="handleLogin(event)">
+          <div style="margin-bottom:14px;position:relative">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <label for="loginUsername" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase">Username or Email</label>
+              <button type="button" id="suggestUsersBtn" onclick="toggleUserSuggestions(event)" style="background:#FAFAFA;border:1px solid #E4E4E7;color:#18181B;font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.15s ease">
+                <span>👤 Recommended Users</span>
+                <span id="suggestChevron" style="font-size:8px;color:#71717A">▼</span>
+              </button>
+            </div>
+
+            <div style="position:relative">
+              <input id="loginUsername" type="text" class="auth-input" placeholder="Click to choose or enter username" required autocomplete="off" value="" onclick="openUserSuggestions(event)" onfocus="openUserSuggestions(event)" oninput="if(document.getElementById('loginError')) document.getElementById('loginError').textContent=''; filterUserSuggestions(this.value);" style="padding-right:34px">
+              <button type="button" onclick="toggleUserSuggestions(event)" title="Show accounts" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#A1A1AA;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;transition:color 0.15s ease">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+
+              <!-- Dropdown Menu for Suggestions (Shown only when clicked) -->
+              <div id="userSuggestionsDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:10px;box-shadow:0 16px 36px -4px rgba(0,0,0,0.12),0 4px 12px rgba(0,0,0,0.06);z-index:200;overflow:hidden">
+                <div style="padding:8px 12px;font-size:10px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:0.08em;background:#FAFAFA;border-bottom:1px solid #F4F4F5;display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace">
+                  <span>Recommended User Accounts</span>
+                  <button type="button" onclick="closeUserSuggestions()" style="background:transparent;border:none;color:#71717A;cursor:pointer;font-size:11px;padding:2px 4px">✕ Close</button>
+                </div>
+                <!-- Quick Fill Buttons inside Dropdown -->
+                <div id="userQuickFillContainer" style="display:flex;align-items:center;gap:6px;padding:7px 12px;background:#FAFAFA;border-bottom:1px solid #F4F4F5;flex-wrap:wrap">
+                  <span style="font-size:10px;color:#71717A;font-weight:500">Quick fill:</span>
+                  <!-- Dynamically populated from API & registered users -->
+                </div>
+                <div id="userSuggestionsListContainer" style="max-height:220px;overflow-y:auto">
+                  <!-- Dynamically populated from API & registered users -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <label for="loginPassword" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase">Password</label>
+              <span style="font-size:10px;color:#71717A">Demo: <code style="color:#0A0A0A;background:#FAFAFA;padding:1px 6px;border-radius:4px;border:1px solid #E4E4E7;font-family:'JetBrains Mono',monospace;font-size:10px">password123</code></span>
+            </div>
+            <div style="position:relative">
+              <input id="loginPassword" type="password" class="auth-input" placeholder="Enter your password" required autocomplete="current-password" onfocus="closeUserSuggestions()" onclick="closeUserSuggestions()" oninput="if(document.getElementById('loginError')) document.getElementById('loginError').textContent='';" style="padding-right:38px">
+              <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <p id="loginError" class="auth-error"></p>
+          <button type="submit" id="loginBtn" class="auth-btn" style="margin-top:8px">
+            Sign In to Catalog
+          </button>
+        </form>
+
+      <!-- Register Form -->
+      <form id="registerForm" autocomplete="off" style="display:none" onsubmit="handleRegister(event)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+          <div>
+            <label for="regUsername" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;margin-bottom:6px;letter-spacing:0.05em;text-transform:uppercase">Username</label>
+            <input id="regUsername" type="text" class="auth-input" placeholder="Choose username" required autocomplete="username" oninput="if(document.getElementById('registerError')) document.getElementById('registerError').textContent='';">
+          </div>
+          <div>
+            <label for="regFullName" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;margin-bottom:6px;letter-spacing:0.05em;text-transform:uppercase">Full Name</label>
+            <input id="regFullName" type="text" class="auth-input" placeholder="Your name" autocomplete="name">
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label for="regEmail" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;margin-bottom:6px;letter-spacing:0.05em;text-transform:uppercase">Email</label>
+          <input id="regEmail" type="email" class="auth-input" placeholder="your@email.com" required autocomplete="email" oninput="if(document.getElementById('registerError')) document.getElementById('registerError').textContent='';">
+        </div>
+        <div style="margin-bottom:14px">
+          <label for="regPassword" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;margin-bottom:6px;letter-spacing:0.05em;text-transform:uppercase">Password</label>
+          <div style="position:relative">
+            <input id="regPassword" type="password" class="auth-input" placeholder="Min. 6 characters" required autocomplete="new-password" oninput="if(document.getElementById('registerError')) document.getElementById('registerError').textContent='';" style="padding-right:38px">
+            <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('regPassword', this)" title="Show/Hide Password">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div style="margin-bottom:20px">
+          <label for="regConfirmPassword" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;margin-bottom:6px;letter-spacing:0.05em;text-transform:uppercase">Confirm Password</label>
+          <div style="position:relative">
+            <input id="regConfirmPassword" type="password" class="auth-input" placeholder="Repeat password" required autocomplete="new-password" oninput="if(document.getElementById('registerError')) document.getElementById('registerError').textContent='';" style="padding-right:38px">
+            <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('regConfirmPassword', this)" title="Show/Hide Password">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <p id="registerError" class="auth-error"></p>
+        <button type="submit" id="registerBtn" class="auth-btn" style="margin-top:8px">
+          Create My Catalog Account
+        </button>
+      </form>
+
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:20px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#71717A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <p style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#71717A;letter-spacing:0.04em;text-transform:uppercase;margin:0">
+            Private Catalog Workspace &bull; Encrypted Session
+          </p>
+        </div>
+      </div>
+  <!-- ========================================================================= -->
+  <!-- MOBILE BOTTOM NAVIGATION (PWA & Small Viewports)                          -->
+  <!-- ========================================================================= -->
+  <nav id="mobileBottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E4E4E7] py-2 px-3 flex items-center justify-around md:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+    <button onclick="switchView('catalog')" class="flex flex-col items-center justify-center p-1 text-[#0A0A0A] transition-colors" id="mobNavCatalogBtn">
+      <i data-lucide="layers" class="w-4 h-4"></i>
+      <span class="text-[9px] font-mono mt-0.5">Catalog</span>
+    </button>
+    <button onclick="switchView('cutouts')" class="flex flex-col items-center justify-center p-1 text-[#71717A] hover:text-[#0A0A0A] transition-colors" id="mobNavCutoutsBtn">
+      <i data-lucide="scissors" class="w-4 h-4"></i>
+      <span class="text-[9px] font-mono mt-0.5">Cutouts</span>
+    </button>
+    
+    <!-- Central Camera Quick Action Button -->
+    <button onclick="triggerMobileCameraOrModal()" class="flex flex-col items-center justify-center -mt-5 transition-transform active:scale-95" title="Take Photo with Mobile Camera">
+      <div class="w-12 h-12 rounded-full bg-[#0A0A0A] text-white flex items-center justify-center shadow-lg border-2 border-white">
+        <i data-lucide="camera" class="w-5 h-5 text-white"></i>
+      </div>
+      <span class="text-[9px] font-mono font-medium text-[#0A0A0A] mt-0.5">Camera</span>
+    </button>
+
+    <button onclick="switchView('scenes')" class="flex flex-col items-center justify-center p-1 text-[#71717A] hover:text-[#0A0A0A] transition-colors" id="mobNavScenesBtn">
+      <i data-lucide="sparkles" class="w-4 h-4"></i>
+      <span class="text-[9px] font-mono mt-0.5">Scenes</span>
+    </button>
+    <button onclick="switchView('angles')" class="flex flex-col items-center justify-center p-1 text-[#71717A] hover:text-[#0A0A0A] transition-colors" id="mobNavAnglesBtn">
+      <i data-lucide="rotate-3d" class="w-4 h-4"></i>
+      <span class="text-[9px] font-mono mt-0.5">3D Angles</span>
+    </button>
+  </nav>
+
+  <!-- ========================================================================= -->
+  <!-- LIVE MOBILE CAMERA VIEWFINDER MODAL                                       -->
+  <!-- ========================================================================= -->
+  <div id="cameraModal" class="hidden fixed inset-0 z-[10000] bg-black/90 backdrop-blur-md flex flex-col items-center justify-between p-4 sm:p-6 animate-in fade-in duration-200">
+    <!-- Camera Header -->
+    <div class="w-full max-w-md flex items-center justify-between text-white py-2 z-10">
+      <div class="flex items-center space-x-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-[#E05A47] animate-pulse"></span>
+        <span class="text-xs font-mono uppercase tracking-wider font-semibold">Studio Mobile Camera</span>
+      </div>
+      <div class="flex items-center space-x-3">
+        <button type="button" onclick="flipCameraFacing()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all" title="Switch Front/Rear Camera">
+          <i data-lucide="switch-camera" class="w-4 h-4"></i>
+        </button>
+        <button type="button" onclick="closeCameraModal()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all" title="Close Camera">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Viewfinder with Rule-of-Thirds Grid & Reticle -->
+    <div class="relative w-full max-w-md flex-1 my-2 bg-black rounded-xl overflow-hidden flex items-center justify-center border border-white/10 shadow-2xl">
+      <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+      <canvas id="cameraCanvas" class="hidden"></canvas>
+
+      <!-- Framing Reticle Guide for Product Placement -->
+      <div class="camera-reticle flex flex-col justify-between p-3 pointer-events-none">
+        <div class="flex justify-between text-[10px] font-mono text-white/50 tracking-widest">
+          <span>FRAME PRODUCT</span>
+          <span>AUTO-MATTING ON</span>
+        </div>
+        <div class="text-center text-[10px] font-mono text-white/50 tracking-wider">
+          TAP SHUTTER TO CAPTURE & PROCESS
+        </div>
+      </div>
+      <div id="cameraFlash" class="absolute inset-0 bg-white opacity-0 pointer-events-none transition-opacity duration-150"></div>
+    </div>
+
+    <!-- Camera Controls Footer -->
+    <div class="w-full max-w-md flex items-center justify-around py-4 z-10">
+      <button type="button" onclick="document.getElementById('mobileCameraInput').click()" class="flex flex-col items-center space-y-1 text-white/70 hover:text-white transition-all">
+        <i data-lucide="image" class="w-5 h-5"></i>
+        <span class="text-[10px] font-mono">Gallery</span>
+      </button>
+
+      <!-- Large Shutter Button -->
+      <button type="button" id="cameraShutterBtn" onclick="snapCameraPhoto()" class="w-16 h-16 rounded-full bg-white p-1 shadow-2xl flex items-center justify-center active:scale-90 transition-transform">
+        <div class="w-13 h-13 rounded-full border-2 border-black bg-white hover:bg-zinc-100 flex items-center justify-center">
+          <div class="w-10 h-10 rounded-full bg-[#E05A47]"></div>
+        </div>
+      </button>
+
+      <button type="button" onclick="closeCameraModal()" class="flex flex-col items-center space-y-1 text-white/70 hover:text-white transition-all">
+        <i data-lucide="x-circle" class="w-5 h-5"></i>
+        <span class="text-[10px] font-mono">Cancel</span>
+      </button>
+    </div>
+  </div>
+
 </body>
 </html>

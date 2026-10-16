@@ -223,15 +223,32 @@ def run_birefnet_inference(
 # ---------------------------------------------------------------------------
 # Conditioning for Multiview
 # ---------------------------------------------------------------------------
-def prepare_conditioning_canvas(cutout_rgba: Image.Image) -> Image.Image:
+def prepare_conditioning_canvas(cutout_rgba: Image.Image, target_size: int = 320) -> Image.Image:
     """
-    Composites the transparent RGBA cutout over a pure white canvas
-    to prepare the conditioning input expected by Zero123++.
+    Prepares input according to official Zero123++ v1.2 conditioning standards:
+    - Tight bounding box crop.
+    - Uniform aspect ratio scaled to 75% within a square canvas.
+    - Neutral mid-gray (127, 127, 127) background (SD VAE latent zero), preventing color washouts.
     """
-    print("--> [Conditioning] Compositing cutout over white canvas in memory...")
-    white_bg = Image.new("RGBA", cutout_rgba.size, (255, 255, 255, 255))
-    conditioned_img = Image.alpha_composite(white_bg, cutout_rgba).convert("RGB")
-    return conditioned_img
+    print("--> [Conditioning] Preparing 0.75-scaled cutout over neutral-gray canvas for Zero123++...")
+    bbox = cutout_rgba.getbbox()
+    cropped = cutout_rgba.crop(bbox) if bbox else cutout_rgba
+
+    max_side = int(target_size * 0.75)
+    aspect = cropped.width / max(cropped.height, 1)
+    if aspect >= 1.0:
+        new_w = max_side
+        new_h = max(int(max_side / aspect), 16)
+    else:
+        new_h = max_side
+        new_w = max(int(max_side * aspect), 16)
+
+    resized = cropped.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (target_size, target_size), (127, 127, 127, 255))
+    offset_x = (target_size - new_w) // 2
+    offset_y = (target_size - new_h) // 2
+    canvas.paste(resized, (offset_x, offset_y), resized)
+    return canvas.convert("RGB")
 
 
 # ---------------------------------------------------------------------------

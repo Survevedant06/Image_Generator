@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 import db
 
 
-def check_duplicate(temp_image_path: str, max_hamming_distance: int = 6) -> Dict[str, Any]:
+def check_duplicate(temp_image_path: str, max_hamming_distance: int = 3, min_similarity: float = 0.94) -> Dict[str, Any]:
     """
     Checks if an uploaded image already exists in the system.
     Returns:
@@ -22,13 +22,13 @@ def check_duplicate(temp_image_path: str, max_hamming_distance: int = 6) -> Dict
         "message": str
       }
     """
-    match = db.find_duplicate_or_similar_image(temp_image_path, max_hamming_distance=max_hamming_distance)
+    match = db.find_duplicate_or_similar_image(temp_image_path, max_hamming_distance=max_hamming_distance, min_similarity=min_similarity)
     if match:
-        if match["match_type"] == "exact":
+        if match["match_type"] in ("exact", "exact_file", "exact_md5"):
             msg = f"Exact duplicate of product '{match['product_name']}' (SKU: {match['product_sku']}) found."
         else:
             pct = int(match["similarity_score"] * 100)
-            msg = f"Visually similar image ({pct}% match) found in product '{match['product_name']}'."
+            msg = f"Visually identical duplicate ({pct}% match) of product '{match['product_name']}' (SKU: {match['product_sku']}) found."
         return {
             "exists": True,
             "match": match,

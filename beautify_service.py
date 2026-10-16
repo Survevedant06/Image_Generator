@@ -124,10 +124,13 @@ def render_and_export_image(
     contrast: float = 1.0,
     saturation: float = 1.0,
     sharpness: float = 1.0,
-    output_filename: Optional[str] = None
+    output_filename: Optional[str] = None,
+    upscale_factor: Optional[int] = None,
+    preserve_text: bool = True
 ) -> Dict[str, Any]:
     """
     Renders, beautifies, resizes, and exports an image to the requested format and dimensions.
+    Now supports optional 2x/4x text-preserving super-resolution pass.
     """
     if not os.path.exists(source_image_path):
         raise FileNotFoundError(f"Source image not found: {source_image_path}")
@@ -176,22 +179,46 @@ def render_and_export_image(
     else:
         fill_color = default_bg
 
-    canvas = Image.new(bg_mode, (out_w, out_h), fill_color)
+    # Check if the source image is a complete styled background scene (opaque) or a transparent cutout
+    is_opaque = False
+    if img.mode == "RGB":
+        is_opaque = True
+    elif img.mode == "RGBA":
+        alpha = img.split()[3]
+        min_a, max_a = alpha.getextrema()
+        if min_a == 255:
+            is_opaque = True
 
-    # Preserve subject aspect ratio and center on canvas
-    src_w, src_h = img.size
-    scale = min((out_w * 0.85) / src_w, (out_h * 0.85) / src_h)
-    new_w = int(src_w * scale)
-    new_h = int(src_h * scale)
-    resized_subject = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-
-    offset_x = (out_w - new_w) // 2
-    offset_y = (out_h - new_h) // 2
-
-    if resized_subject.mode == "RGBA":
-        canvas.paste(resized_subject, (offset_x, offset_y), mask=resized_subject.split()[3])
+    if is_opaque:
+        # Full composition / styled background scene: cleanly fit target canvas without empty borders
+        canvas = ImageOps.fit(img.convert(bg_mode), (out_w, out_h), method=Image.Resampling.LANCZOS)
     else:
-        canvas.paste(resized_subject, (offset_x, offset_y))
+        # Transparent subject cutout: center on canvas with requested background and standard commercial framing
+        canvas = Image.new(bg_mode, (out_w, out_h), fill_color)
+        src_w, src_h = img.size
+        scale = min((out_w * 0.85) / src_w, (out_h * 0.85) / src_h)
+        new_w = max(1, int(src_w * scale))
+        new_h = max(1, int(src_h * scale))
+        resized_subject = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        offset_x = (out_w - new_w) // 2
+        offset_y = (out_h - new_h) // 2
+
+        if resized_subject.mode == "RGBA":
+            canvas.paste(resized_subject, (offset_x, offset_y), mask=resized_subject.split()[3])
+        else:
+            canvas.paste(resized_subject, (offset_x, offset_y))
+
+    # Optional AI text-preserving super-resolution pass
+    if upscale_factor in (2, 4):
+        try:
+            import upscale_service
+            canvas, _ = upscale_service.upscale_image(
+                canvas, scale_factor=upscale_factor, preserve_text=preserve_text
+            )
+            out_w, out_h = canvas.size
+        except Exception as up_err:
+            print(f"[Warning] Super-resolution upscale pass skipped: {up_err}")
 
     # Normalize format for Pillow registry and file extension
     fmt_upper = (fmt or "PNG").upper()
