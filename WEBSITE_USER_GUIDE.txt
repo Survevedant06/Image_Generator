@@ -43,25 +43,30 @@ isolation. Each registered seller or merchant account maintains their own
 private product catalog, isolated cutouts, custom scenes, and generation history.
 
 A. Logging In:
-   - When you open the website, an Authentication Modal appears if you are not
-     signed in.
-   - For rapid testing and multi-role demos, use the one-click demo user chips
-     displayed above the login form:
-       * "alex_studio"    (Fashion, Footwear, & Lifestyle lookbooks)
-       * "morgan_catalog" (Tech, Gadgets, & Consumer Electronics)
-       * "user1"          (Fashion & Apparel seller)
-       * "user2"          (Hardware & Electronics seller)
-     All pre-seeded demo accounts use password: password123
-   - Alternatively, type your username or email and password, then click "Sign In".
+   - When you open the website, the Authentication Modal appears automatically.
+   - All accounts created in the database are displayed directly in the
+     "Created Accounts" list on the card:
+       * "alex"   (Alex Studio - Fashion, Beauty & Apparel)
+       * "morgan" (Morgan Catalog - Tech, Tools & Electronics)
+       * "vedant" (Vedant Surve - Studio Director & Admin)
+       * Any newly registered or created merchant accounts
+     Starter demo accounts use password: password123
+   - Simply click on your created account tile to select it (shows "✓ Selected").
+   - Click "Sign In to Catalog" to access your private catalog.
+   - To sign in with a custom username or email, click "Or sign in with custom
+     username / email".
 
 B. Registering a New Account:
-   - Click the "Register" tab at the top of the auth modal.
-   - Enter your desired Username, Email address, and Password.
-   - Click "Create Account" to immediately enter your personalized catalog workspace.
+   - Click the "Create Account" tab at the top of the modal.
+   - Enter your desired Username, Full Name, Email address, and Password.
+   - Click "Create My Catalog Account".
+   - Your account is immediately created, saved permanently in the database,
+     and will appear in the Created Accounts list whenever you return to sign in.
 
 C. Switching Accounts & Logging Out:
    - Your active username is shown in the top-right header badge.
-   - Click the logout icon next to your username to switch accounts at any time.
+   - Click the logout icon next to your username to return to the sign-in screen
+     at any time.
 
 
 ================================================================================

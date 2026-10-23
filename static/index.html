@@ -266,6 +266,28 @@
     .user-suggestion-item:hover {
       background: #F4F4F5;
     }
+    .created-user-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border: 1.5px solid #E4E4E7;
+      border-radius: 8px;
+      background: #FFFFFF;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .created-user-card:hover {
+      border-color: #A1A1AA;
+      background: #FAFAFA;
+      transform: translateY(-1px);
+    }
+    .created-user-card.active {
+      border-color: #0A0A0A !important;
+      background: #FFFFFF !important;
+      box-shadow: 0 0 0 2px rgba(10,10,10,0.08);
+    }
     /* Subtle dot-grid background */
     #authOverlay::before {
       content: '';
@@ -2704,23 +2726,13 @@
       if (overlay) overlay.classList.remove('hidden');
       const badge = document.getElementById('userBadge');
       if (badge) badge.classList.add('hidden');
-      loadUserSuggestions();
-      const uInput = document.getElementById('loginUsername');
-      if (uInput) uInput.value = '';
-      const pInput = document.getElementById('loginPassword');
-      if (pInput) pInput.value = '';
       const errEl = document.getElementById('loginError');
       if (errEl) errEl.textContent = '';
-      closeUserSuggestions();
-      // Ensure browser autofill does not force a username into the field on load
-      setTimeout(() => {
-        if (uInput && !uInput.matches(':focus')) {
-          uInput.value = '';
-        }
-        if (pInput && !pInput.matches(':focus')) {
-          pInput.value = '';
-        }
-      }, 80);
+      const manualSec = document.getElementById('manualUsernameSection');
+      if (manualSec) manualSec.style.display = 'none';
+      const toggleIcon = document.getElementById('manualUserToggleIcon');
+      if (toggleIcon) toggleIcon.textContent = '▸';
+      loadUserSuggestions();
     }
 
     function hideAuthOverlay(user) {
@@ -2802,14 +2814,15 @@
     }
 
     // =========================================================================
-    // DYNAMIC USER SUGGESTIONS & SELECTION
+    // DYNAMIC CREATED USERS LOADING & SELECTION
     // =========================================================================
     let cachedSuggestedUsers = [];
+    let selectedAccountUsername = '';
 
     function getUserAvatarGradient(username) {
-      if (username === 'alex' || username === 'alex_studio') return 'linear-gradient(135deg,#38bdf8,#6366f1)';
-      if (username === 'morgan' || username === 'morgan_catalog') return 'linear-gradient(135deg,#ec4899,#f43f5e)';
-      if (username === 'vedant' || username === 'vedant_surve') return 'linear-gradient(135deg,#10b981,#06b6d4)';
+      if (username === 'alex') return 'linear-gradient(135deg,#38bdf8,#6366f1)';
+      if (username === 'morgan') return 'linear-gradient(135deg,#ec4899,#f43f5e)';
+      if (username === 'vedant') return 'linear-gradient(135deg,#10b981,#06b6d4)';
       const gradients = [
         'linear-gradient(135deg,#10b981,#06b6d4)',
         'linear-gradient(135deg,#8b5cf6,#d946ef)',
@@ -2819,66 +2832,112 @@
         'linear-gradient(135deg,#f97316,#ec4899)'
       ];
       let hash = 0;
-      for (let i = 0; i < username.length; i++) hash += username.charCodeAt(i);
+      for (let i = 0; i < (username || '').length; i++) hash += username.charCodeAt(i);
       return gradients[Math.abs(hash) % gradients.length];
     }
 
-    function renderUserSuggestionsHTML(users) {
-      const listContainer = document.getElementById('userSuggestionsListContainer');
-      if (!listContainer) return;
-      const activePref = localStorage.getItem('last_registered_username');
+    function renderCreatedUsersList(users) {
+      const container = document.getElementById('createdUsersContainer');
+      const countBadge = document.getElementById('createdUserCountBadge');
+      if (!container) return;
+
       if (!users || users.length === 0) {
-        listContainer.innerHTML = '<div style="padding:14px;color:#71717A;font-size:11px;text-align:center">No user accounts found</div>';
+        container.innerHTML = '<div style="padding:14px;color:#71717A;font-size:11px;text-align:center">No user accounts found in database. Create one using "Create Account" tab!</div>';
+        if (countBadge) countBadge.textContent = '0 Accounts';
         return;
       }
-      listContainer.innerHTML = users.map(u => {
+
+      if (countBadge) {
+        countBadge.textContent = `${users.length} ${users.length === 1 ? 'Account' : 'Accounts'}`;
+      }
+
+      const activePref = (selectedAccountUsername || localStorage.getItem('last_registered_username') || users[0].username).toLowerCase();
+
+      container.innerHTML = users.map(u => {
         const initial = (u.username || 'U')[0].toUpperCase();
         const grad = getUserAvatarGradient(u.username);
-        const isDemo = u.is_demo || ['alex', 'morgan', 'vedant', 'alex_studio', 'morgan_catalog'].includes(u.username);
-        const badge = isDemo 
-          ? '<span style="font-size:9px;background:#FAFAFA;color:#0A0A0A;border:1px solid #E4E4E7;padding:1px 5px;border-radius:4px;font-weight:600;font-family:monospace">DEMO</span>'
-          : '<span style="font-size:9px;background:#FAFAFA;color:#71717A;border:1px solid #E4E4E7;padding:1px 5px;border-radius:4px;font-weight:600;font-family:monospace">USER</span>';
+        const isDemo = Boolean(u.is_demo);
+        const isSelected = (u.username.toLowerCase() === activePref);
         const countText = u.product_count !== undefined 
           ? `${u.product_count} ${u.product_count === 1 ? 'item' : 'items'}`
-          : (isDemo ? 'Catalog' : 'Seller');
-        const isRecent = activePref && u.username === activePref;
+          : (isDemo ? 'Demo Catalog' : 'Seller');
 
         return `
-          <div class="user-suggestion-item" onclick="selectDemoUser('${escapeQuotes(u.username)}', ${isDemo})" style="${isRecent ? 'background:#F4F4F5;' : ''}">
+          <div class="created-user-card ${isSelected ? 'active' : ''}" onclick="selectCreatedAccount('${escapeQuotes(u.username)}', ${isDemo})" style="${isSelected ? 'border-color:#0A0A0A!important;background:#FFFFFF!important;' : ''}">
             <div style="display:flex;align-items:center;gap:10px">
-              <div style="width:30px;height:30px;border-radius:8px;background:${grad};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;flex-shrink:0">${initial}</div>
-              <div>
+              <div style="width:32px;height:32px;border-radius:8px;background:${grad};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0">${initial}</div>
+              <div style="text-align:left">
                 <div style="display:flex;align-items:center;gap:6px">
                   <span style="color:#0A0A0A;font-weight:600;font-size:12px">${escapeQuotes(u.username)}</span>
-                  ${badge}
-                  ${isRecent ? '<span style="font-size:8px;background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;padding:1px 4px;border-radius:3px;font-weight:600">RECENT</span>' : ''}
+                  ${isDemo ? '<span style="font-size:9px;background:#FAFAFA;color:#0A0A0A;border:1px solid #E4E4E7;padding:1px 5px;border-radius:4px;font-weight:600;font-family:monospace">DEMO</span>' : '<span style="font-size:9px;background:#FAFAFA;color:#71717A;border:1px solid #E4E4E7;padding:1px 5px;border-radius:4px;font-weight:600;font-family:monospace">CREATED</span>'}
                 </div>
-                <div style="color:#71717A;font-size:10px">${escapeQuotes(u.full_name || u.field || 'Catalog Account')}</div>
+                <div style="color:#71717A;font-size:10px">${escapeQuotes(u.full_name || u.field || u.email || 'Registered Seller')}</div>
               </div>
             </div>
-            <span style="font-size:10px;color:#71717A;background:#FAFAFA;border:1px solid #E4E4E7;padding:2px 7px;border-radius:6px;font-family:monospace">${countText}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:10px;color:#71717A;background:#FAFAFA;border:1px solid #E4E4E7;padding:2px 7px;border-radius:6px;font-family:monospace">${countText}</span>
+              ${isSelected ? '<span style="font-size:10px;font-weight:600;background:#0A0A0A;color:#fff;padding:2px 7px;border-radius:12px">✓ Selected</span>' : '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:1.5px solid #D4D4D8"></span>'}
+            </div>
           </div>
         `;
       }).join('');
     }
 
-    function filterUserSuggestions(query) {
-      const q = (query || '').trim().toLowerCase();
-      if (!q) {
-        renderUserSuggestionsHTML(cachedSuggestedUsers);
-        return;
+    function selectCreatedAccount(username, isDemo = false) {
+      selectedAccountUsername = username;
+      const uInput = document.getElementById('loginUsername');
+      const pInput = document.getElementById('loginPassword');
+      const errEl = document.getElementById('loginError');
+      const demoHint = document.getElementById('demoPasswordHint');
+
+      if (uInput) {
+        uInput.value = username;
       }
-      const filtered = cachedSuggestedUsers.filter(u => {
-        return (u.username && u.username.toLowerCase().includes(q)) ||
-               (u.email && u.email.toLowerCase().includes(q)) ||
-               (u.full_name && u.full_name.toLowerCase().includes(q));
-      });
-      renderUserSuggestionsHTML(filtered);
+      if (pInput) {
+        if (isDemo) {
+          pInput.value = 'password123';
+          if (demoHint) demoHint.style.display = 'inline-block';
+        } else {
+          pInput.value = '';
+          if (demoHint) demoHint.style.display = 'none';
+          pInput.focus();
+        }
+      }
+      if (errEl) errEl.textContent = '';
+      renderCreatedUsersList(cachedSuggestedUsers);
+    }
+
+    // Backwards-compatible alias
+    function selectDemoUser(username, isDemo = false) {
+      selectCreatedAccount(username, isDemo);
+    }
+
+    function toggleManualUsernameInput() {
+      const sec = document.getElementById('manualUsernameSection');
+      const icon = document.getElementById('manualUserToggleIcon');
+      if (!sec) return;
+      const isHidden = (sec.style.display === 'none' || !sec.style.display);
+      sec.style.display = isHidden ? 'block' : 'none';
+      if (icon) icon.textContent = isHidden ? '▾' : '▸';
+      if (isHidden) {
+        const uInput = document.getElementById('loginUsername');
+        if (uInput) {
+          uInput.removeAttribute('readonly');
+          uInput.focus();
+        }
+      }
+    }
+
+    function handleManualUsernameInput(val) {
+      selectedAccountUsername = (val || '').trim();
+      const errEl = document.getElementById('loginError');
+      if (errEl) errEl.textContent = '';
+      renderCreatedUsersList(cachedSuggestedUsers);
     }
 
     async function loadUserSuggestions(preferredUsername = null) {
       try {
-        const res = await fetch('/api/auth/demo-users');
+        const res = await fetch('/api/auth/suggested-users');
         if (res.ok) {
           const data = await res.json();
           cachedSuggestedUsers = data.users || [];
@@ -2887,111 +2946,44 @@
         console.warn('Could not load user suggestions:', err);
       }
 
-      // Check localStorage for recently registered username
+      // Check preferred or recently registered username
       const lastRegistered = localStorage.getItem('last_registered_username');
-      const activePref = preferredUsername || lastRegistered;
-
-      // Render dropdown items
-      renderUserSuggestionsHTML(cachedSuggestedUsers);
-
-      // Render Quick Fill Chips (up to top 4 accounts)
-      const chipsContainer = document.getElementById('userQuickFillContainer');
-      if (chipsContainer) {
-        const topUsers = cachedSuggestedUsers.slice(0, 3);
-        chipsContainer.innerHTML = `
-          <span style="font-size:10px;color:#71717A;font-weight:500">Quick Fill:</span>
-          ${topUsers.map(u => {
-            const isDemo = u.is_demo || ['alex', 'morgan', 'vedant', 'alex_studio', 'morgan_catalog'].includes(u.username);
-            const dotColor = (u.username === 'alex' || u.username === 'alex_studio') ? '#0A0A0A' : ((u.username === 'morgan' || u.username === 'morgan_catalog') ? '#71717A' : '#10b981');
-            const isRecent = activePref && u.username === activePref;
-            return `
-              <button type="button" class="user-chip-btn" onclick="selectDemoUser('${escapeQuotes(u.username)}', ${isDemo})" style="${isRecent ? 'border-color:#0A0A0A;background:#F4F4F5;font-weight:600;' : ''}">
-                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor}"></span>
-                ${escapeQuotes(u.username)}
-              </button>
-            `;
-          }).join('')}
-        `;
+      let targetUser = null;
+      if (preferredUsername) {
+        targetUser = cachedSuggestedUsers.find(u => u.username.toLowerCase() === preferredUsername.toLowerCase());
+      }
+      if (!targetUser && lastRegistered) {
+        targetUser = cachedSuggestedUsers.find(u => u.username.toLowerCase() === lastRegistered.toLowerCase());
+      }
+      if (!targetUser && cachedSuggestedUsers.length > 0) {
+        targetUser = cachedSuggestedUsers[0];
       }
 
-    }
-
-    function selectDemoUser(username, isDemo = false) {
-      const uInput = document.getElementById('loginUsername');
-      const pInput = document.getElementById('loginPassword');
-      const errEl = document.getElementById('loginError');
-      if (uInput) {
-        uInput.value = username;
-        uInput.classList.add('ring-2', 'ring-zinc-900/20');
-        setTimeout(() => uInput.classList.remove('ring-2', 'ring-zinc-900/20'), 600);
-      }
-      if (pInput) {
-        if (isDemo) {
-          pInput.value = 'password123';
-        } else {
-          pInput.value = '';
+      if (targetUser) {
+        selectedAccountUsername = targetUser.username;
+        const uInput = document.getElementById('loginUsername');
+        const pInput = document.getElementById('loginPassword');
+        const demoHint = document.getElementById('demoPasswordHint');
+        if (uInput) uInput.value = targetUser.username;
+        if (pInput) {
+          if (targetUser.is_demo) {
+            pInput.value = 'password123';
+            if (demoHint) demoHint.style.display = 'inline-block';
+          } else {
+            pInput.value = '';
+            if (demoHint) demoHint.style.display = 'none';
+          }
         }
       }
-      if (errEl) errEl.textContent = '';
-      closeUserSuggestions();
-      showToast(`Selected user: ${username}`, 'info', 1800);
-      if (isDemo) {
-        const btn = document.getElementById('loginBtn');
-        if (btn) btn.focus();
-      } else if (pInput) {
-        pInput.focus();
-      }
+
+      renderCreatedUsersList(cachedSuggestedUsers);
     }
 
-    function openUserSuggestions(e) {
-      if (e && e.type !== 'focus') {
-        e.stopPropagation();
-      }
-      const dropdown = document.getElementById('userSuggestionsDropdown');
-      if (dropdown) dropdown.style.display = 'block';
-      const chev = document.getElementById('suggestChevron');
-      if (chev) chev.textContent = '▲';
-      const uInput = document.getElementById('loginUsername');
-      filterUserSuggestions(uInput ? uInput.value : '');
-    }
-
-    function closeUserSuggestions() {
-      const dropdown = document.getElementById('userSuggestionsDropdown');
-      if (dropdown) dropdown.style.display = 'none';
-      const chev = document.getElementById('suggestChevron');
-      if (chev) chev.textContent = '▼';
-    }
-
-    function toggleUserSuggestions(e) {
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      const dropdown = document.getElementById('userSuggestionsDropdown');
-      if (!dropdown) return;
-      if (dropdown.style.display === 'block') {
-        closeUserSuggestions();
-      } else {
-        openUserSuggestions(e);
-      }
-    }
-
-    document.addEventListener('click', (e) => {
-      const dropdown = document.getElementById('userSuggestionsDropdown');
-      const btn = document.getElementById('suggestUsersBtn');
-      const input = document.getElementById('loginUsername');
-      if (dropdown && dropdown.style.display === 'block') {
-        if (!dropdown.contains(e.target) && e.target !== btn && e.target !== input && !btn?.contains(e.target)) {
-          closeUserSuggestions();
-        }
-      }
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeUserSuggestions();
-      }
-    });
+    // Fallback stubs for any legacy event handlers
+    function openUserSuggestions(e) {}
+    function closeUserSuggestions() {}
+    function toggleUserSuggestions(e) {}
+    function filterUserSuggestions(q) {}
 
     function switchAuthTab(tab) {
       closeUserSuggestions();
@@ -3028,7 +3020,7 @@
       const usernameInput = document.getElementById('loginUsername');
       const passwordInput = document.getElementById('loginPassword');
 
-      const username = usernameInput ? usernameInput.value.trim() : '';
+      const username = ((usernameInput && usernameInput.value) ? usernameInput.value : selectedAccountUsername).trim();
       const password = passwordInput ? passwordInput.value : '';
 
       if (!username) {
@@ -6710,47 +6702,50 @@
       <div class="auth-card-body">
 
         <!-- Login Form -->
-        <form id="loginForm" autocomplete="off" onsubmit="handleLogin(event)">
-          <div style="margin-bottom:14px;position:relative">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-              <label for="loginUsername" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase">Username or Email</label>
-              <button type="button" id="suggestUsersBtn" onclick="toggleUserSuggestions(event)" style="background:#FAFAFA;border:1px solid #E4E4E7;color:#18181B;font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.15s ease">
-                <span>👤 Recommended Users</span>
-                <span id="suggestChevron" style="font-size:8px;color:#71717A">▼</span>
-              </button>
+        <form id="loginForm" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onsubmit="handleLogin(event)">
+          <!-- Anti-autofill decoy inputs to permanently block browser credential manager popups -->
+          <div style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;height:0;width:0;overflow:hidden" aria-hidden="true">
+            <input type="text" name="anti_autofill_user" tabindex="-1" autocomplete="off" />
+            <input type="password" name="anti_autofill_pwd" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <!-- Section: Created User Accounts (Directly Visible) -->
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Created Accounts</span>
+              </label>
+              <span id="createdUserCountBadge" style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:#71717A;background:#FAFAFA;border:1px solid #E4E4E7;padding:1px 6px;border-radius:4px">Loading...</span>
             </div>
 
-            <div style="position:relative">
-              <input id="loginUsername" type="text" class="auth-input" placeholder="Click to choose or enter username" required autocomplete="off" value="" onclick="openUserSuggestions(event)" onfocus="openUserSuggestions(event)" oninput="if(document.getElementById('loginError')) document.getElementById('loginError').textContent=''; filterUserSuggestions(this.value);" style="padding-right:34px">
-              <button type="button" onclick="toggleUserSuggestions(event)" title="Show accounts" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#A1A1AA;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;transition:color 0.15s ease">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-              </button>
-
-              <!-- Dropdown Menu for Suggestions (Shown only when clicked) -->
-              <div id="userSuggestionsDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:10px;box-shadow:0 16px 36px -4px rgba(0,0,0,0.12),0 4px 12px rgba(0,0,0,0.06);z-index:200;overflow:hidden">
-                <div style="padding:8px 12px;font-size:10px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:0.08em;background:#FAFAFA;border-bottom:1px solid #F4F4F5;display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace">
-                  <span>Recommended User Accounts</span>
-                  <button type="button" onclick="closeUserSuggestions()" style="background:transparent;border:none;color:#71717A;cursor:pointer;font-size:11px;padding:2px 4px">✕ Close</button>
-                </div>
-                <!-- Quick Fill Buttons inside Dropdown -->
-                <div id="userQuickFillContainer" style="display:flex;align-items:center;gap:6px;padding:7px 12px;background:#FAFAFA;border-bottom:1px solid #F4F4F5;flex-wrap:wrap">
-                  <span style="font-size:10px;color:#71717A;font-weight:500">Quick fill:</span>
-                  <!-- Dynamically populated from API & registered users -->
-                </div>
-                <div id="userSuggestionsListContainer" style="max-height:220px;overflow-y:auto">
-                  <!-- Dynamically populated from API & registered users -->
-                </div>
-              </div>
+            <!-- Visible scrollable list of created users -->
+            <div id="createdUsersContainer" style="display:flex;flex-direction:column;gap:6px;max-height:190px;overflow-y:auto;border:1px solid #E4E4E7;border-radius:10px;padding:6px;background:#FAFAFA">
+              <div style="padding:14px;color:#71717A;font-size:11px;text-align:center">Loading created accounts...</div>
             </div>
           </div>
 
+          <!-- Optional Manual Username / Email Accordion -->
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <button type="button" id="toggleManualUserBtn" onclick="toggleManualUsernameInput()" style="background:none;border:none;color:#71717A;font-size:11px;font-weight:500;cursor:pointer;padding:2px 0;display:flex;align-items:center;gap:4px;transition:color 0.15s">
+                <span id="manualUserToggleIcon">▸</span>
+                <span>Or sign in with custom username / email</span>
+              </button>
+            </div>
+            <div id="manualUsernameSection" style="display:none;margin-top:8px">
+              <input id="loginUsername" type="text" name="app_account_id" class="auth-input" placeholder="Type username or email" autocomplete="new-password" data-lpignore="true" data-form-type="other" spellcheck="false" readonly onfocus="this.removeAttribute('readonly')" onclick="this.removeAttribute('readonly')" oninput="handleManualUsernameInput(this.value)">
+            </div>
+          </div>
+
+          <!-- Password Field -->
           <div style="margin-bottom:20px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
               <label for="loginPassword" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase">Password</label>
-              <span style="font-size:10px;color:#71717A">Demo: <code style="color:#0A0A0A;background:#FAFAFA;padding:1px 6px;border-radius:4px;border:1px solid #E4E4E7;font-family:'JetBrains Mono',monospace;font-size:10px">password123</code></span>
+              <span id="demoPasswordHint" style="font-size:10px;color:#71717A">Demo: <code style="color:#0A0A0A;background:#FAFAFA;padding:1px 6px;border-radius:4px;border:1px solid #E4E4E7;font-family:'JetBrains Mono',monospace;font-size:10px">password123</code></span>
             </div>
             <div style="position:relative">
-              <input id="loginPassword" type="password" class="auth-input" placeholder="Enter your password" required autocomplete="current-password" onfocus="closeUserSuggestions()" onclick="closeUserSuggestions()" oninput="if(document.getElementById('loginError')) document.getElementById('loginError').textContent='';" style="padding-right:38px">
+              <input id="loginPassword" type="password" name="app_secret_key" class="auth-input" placeholder="Enter password" required autocomplete="new-password" data-lpignore="true" data-form-type="other" oninput="if(document.getElementById('loginError')) document.getElementById('loginError').textContent='';" style="padding-right:38px">
               <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>

@@ -813,12 +813,13 @@ def get_me(current_user: dict = Depends(auth.get_current_user)):
 @app.get("/api/auth/demo-users")
 @app.get("/api/auth/suggested-users")
 def get_demo_users():
-    """Returns available user accounts (both demo accounts and newly created users) for quick selection and suggestions."""
+    """Returns available user accounts created in the database for selection."""
     users = db.get_suggested_users()
+    demo_list = [u["username"] for u in users if u.get("is_demo")]
     return {
         "status": "ok",
         "users": users,
-        "demo_usernames": ["alex", "morgan", "vedant"],
+        "demo_usernames": demo_list,
         "default_password": "password123"
     }
 

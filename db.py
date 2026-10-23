@@ -200,10 +200,7 @@ def ensure_default_users():
                 if not demo_hash:
                     demo_hash = bcrypt.hashpw(b"password123", bcrypt.gensalt(10)).decode("utf-8")
                 cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?;", (demo_hash, existing["id"]))
-
-    # Prune any other user accounts so only alex, morgan, vedant remain
-    cursor.execute("DELETE FROM users WHERE LOWER(username) NOT IN ('alex', 'morgan', 'vedant');")
-
+    # Ensure all created user accounts are permanently preserved (no pruning)
     # Also assign any unpartitioned products (user_id IS NULL) to demo users
     cursor.execute("SELECT id FROM users WHERE LOWER(username) = 'alex';")
     alex_row = cursor.fetchone()
