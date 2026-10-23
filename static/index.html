@@ -1810,7 +1810,13 @@
 
               <!-- Custom Prompt -->
               <div>
-                <label class="block text-[11px] font-mono uppercase tracking-wider text-[#71717A] mb-1">Atmospheric Direction (Optional)</label>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-[11px] font-mono uppercase tracking-wider text-[#71717A]">Atmospheric Direction (Optional)</label>
+                  <button type="button" onclick="enhanceStudioAtmospherePrompt()" class="text-[10px] font-mono text-[#0A0A0A] bg-white border border-[#E4E4E7] hover:border-[#0A0A0A] px-2 py-0.5 rounded-[3px] transition-all flex items-center space-x-1" title="Enhance atmospheric prompt with commercial lighting directives">
+                    <i data-lucide="sparkles" class="w-2.5 h-2.5 text-amber-500"></i>
+                    <span>Enhance Prompt</span>
+                  </button>
+                </div>
                 <input 
                   type="text" 
                   id="studioCustomPrompt" 
@@ -3693,6 +3699,22 @@
                     >
                       <i data-lucide="edit-2" class="w-3.5 h-3.5 text-[#71717A]"></i>
                       <span>Edit Details</span>
+                    </button>
+                    <button 
+                      onclick="event.stopPropagation(); closeAllDropdowns(); quickUpscaleProduct(${p.id}, 2)" 
+                      class="w-full text-left px-3 py-1.5 text-xs text-[#0A0A0A] hover:bg-[#FAFAFA] flex items-center space-x-2 font-medium transition-colors"
+                      title="AI Super-Resolution 2x"
+                    >
+                      <i data-lucide="zap" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+                      <span>Quick Upscale 2x</span>
+                    </button>
+                    <button 
+                      onclick="event.stopPropagation(); closeAllDropdowns(); openStudioModal(${p.id}, 'stylize')" 
+                      class="w-full text-left px-3 py-1.5 text-xs text-[#0A0A0A] hover:bg-[#FAFAFA] flex items-center space-x-2 font-medium transition-colors"
+                      title="Artificial Shadows & Scene Tone Match"
+                    >
+                      <i data-lucide="sun-medium" class="w-3.5 h-3.5 text-[#0A0A0A]"></i>
+                      <span>Shadow & Tone Studio</span>
                     </button>
                     ${isDuplicate ? `
                       <button 
@@ -5579,7 +5601,10 @@
 
     async function runStudioStylize() {
       if (!currentStudioProduct) return;
-      const cutout = currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop() : null;
+      const cutout = (currentStudioProduct.cutout_url ? currentStudioProduct.cutout_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_url ? currentStudioProduct.raw_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_image ? currentStudioProduct.raw_image.split(/[\\/]/).pop().split('?')[0] : null);
       if (!cutout) {
         showToast("Please remove background first on Tab 1.", 'warning');
         return;
@@ -6394,7 +6419,10 @@
         showToast("Please open a product in Studio first.", 'warning');
         return;
       }
-      const cutout = currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop() : null;
+      const cutout = (currentStudioProduct.cutout_url ? currentStudioProduct.cutout_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_url ? currentStudioProduct.raw_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_image ? currentStudioProduct.raw_image.split(/[\\/]/).pop().split('?')[0] : null);
       if (!cutout) {
         showToast("Please remove background first on Tab 1.", 'warning');
         return;
@@ -6454,7 +6482,10 @@
         showToast("Please select a product first.", 'warning');
         return;
       }
-      const cutout = currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop() : null;
+      const cutout = (currentStudioProduct.cutout_url ? currentStudioProduct.cutout_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_url ? currentStudioProduct.raw_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_image ? currentStudioProduct.raw_image.split(/[\\/]/).pop().split('?')[0] : null);
       if (!cutout) {
         showToast("Please remove background first on Tab 1.", 'warning');
         return;
@@ -6505,9 +6536,11 @@
         showToast("Please select a product first.", 'warning');
         return;
       }
-      const source = currentStudioProduct.rendered_scene_url ? 
-        currentStudioProduct.rendered_scene_url.split('/').pop() : 
-        (currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop() : null);
+      const source = (currentStudioProduct.rendered_scene_url ? currentStudioProduct.rendered_scene_url.split('/').pop().split('?')[0] : null) ||
+                     (currentStudioProduct.cutout_url ? currentStudioProduct.cutout_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.cutout_image ? currentStudioProduct.cutout_image.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_url ? currentStudioProduct.raw_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+                     (currentStudioProduct.raw_image ? currentStudioProduct.raw_image.split(/[\\/]/).pop().split('?')[0] : null);
 
       if (!source) {
         showToast("No source asset available to upscale.", 'warning');
@@ -6535,7 +6568,64 @@
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
 
-        // Download directly
+        // Update studio stylize preview with high-res asset
+        const img = document.getElementById('studioStylizeResultImg');
+        if (img) {
+          img.src = `${data.file_url}?t=${Date.now()}`;
+          img.classList.remove('hidden');
+        }
+        const ph = document.getElementById('studioStylizePlaceholder');
+        if (ph) ph.classList.add('hidden');
+        const actions = document.getElementById('studioStylizeActions');
+        if (actions) actions.classList.remove('hidden');
+        const link = document.getElementById('studioStylizeOpenLink');
+        if (link) link.href = data.file_url;
+        currentStudioProduct.rendered_scene_url = data.file_url;
+
+        // Auto trigger download
+        const a = document.createElement('a');
+        a.href = data.file_url;
+        a.download = data.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        showToast(`AI ${factor}x Super-Resolution complete! (${data.upscaled_size[0]}×${data.upscaled_size[1]} px in ${data.elapsed_ms}ms)`, 'success', 5000);
+      } catch (err) {
+        showToast("Upscaling failed: " + err, 'error');
+      }
+    }
+
+    async function quickUpscaleProduct(productId, factor = 2) {
+      const prod = (catalogProducts || []).find(p => p.id === productId);
+      const source = prod ? (
+        (prod.cutout_url ? prod.cutout_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+        (prod.cutout_image ? prod.cutout_image.split(/[\\/]/).pop().split('?')[0] : null) ||
+        (prod.raw_url ? prod.raw_url.split(/[\\/]/).pop().split('?')[0] : null) ||
+        (prod.raw_image ? prod.raw_image.split(/[\\/]/).pop().split('?')[0] : null)
+      ) : null;
+
+      if (!source) {
+        showToast("No product image found to upscale.", 'warning');
+        return;
+      }
+
+      showToast(`Running AI ${factor}x Super-Resolution for "${prod.name}"...`, 'info', 3000);
+      try {
+        const res = await apiFetch('/api/upscale', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_image: source,
+            scale_factor: factor,
+            preserve_text: true,
+            product_id: productId
+          })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+
+        // Download
         const a = document.createElement('a');
         a.href = data.file_url;
         a.download = data.filename;

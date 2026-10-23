@@ -2286,6 +2286,15 @@ def apply_shadow_endpoint(req: ShadowApplyRequest):
         ]
         source_path = next((p for p in candidates if os.path.exists(p)), None)
 
+    if not source_path and req.product_id:
+        prod = db.get_product(req.product_id)
+        if prod:
+            for k in ("cutout_image", "raw_image"):
+                p_img = prod.get(k)
+                if p_img and os.path.exists(p_img):
+                    source_path = p_img
+                    break
+
     if not source_path:
         raise HTTPException(status_code=404, detail="Cutout image not found for shadow synthesis.")
 
@@ -2354,6 +2363,16 @@ def upscale_image_endpoint(req: UpscaleRequest):
         os.path.join(BASE_DIR, safe_name)
     ]
     source_path = next((p for p in candidates if os.path.exists(p)), None)
+
+    if not source_path and req.product_id:
+        prod = db.get_product(req.product_id)
+        if prod:
+            for k in ("cutout_image", "raw_image"):
+                p_img = prod.get(k)
+                if p_img and os.path.exists(p_img):
+                    source_path = p_img
+                    break
+
     if not source_path:
         raise HTTPException(status_code=404, detail=f"Source image '{safe_name}' not found.")
 
@@ -2402,6 +2421,16 @@ def color_match_endpoint(req: ColorToneMatchRequest):
         os.path.join(BASE_DIR, safe_prod)
     ]
     prod_path = next((p for p in candidates if os.path.exists(p)), None)
+
+    if not prod_path and req.product_id:
+        prod = db.get_product(req.product_id)
+        if prod:
+            for k in ("cutout_image", "raw_image"):
+                p_img = prod.get(k)
+                if p_img and os.path.exists(p_img):
+                    prod_path = p_img
+                    break
+
     if not prod_path:
         raise HTTPException(status_code=404, detail=f"Product image '{safe_prod}' not found.")
 
