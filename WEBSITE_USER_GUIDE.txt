@@ -1,0 +1,370 @@
+================================================================================
+                      E-COMMERCE AI STUDIO - WEBSITE USER GUIDE
+                      Complete Manual for Latest Features & Updates
+================================================================================
+Date: October 2026
+App Version: v1.2.0 Pro Lookbook Edition
+Local URL: http://localhost:8000
+================================================================================
+
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+ 1. Getting Started & Launching the Application
+ 2. User Authentication & Multi-Tenant Workspaces (Change #8)
+ 3. Text-to-Product AI Scene Generation (Change #5)
+ 4. AI Commercial Prompt Enhancer (Change #4)
+ 5. Artificial Shadow Generation Suite (Change #1)
+ 6. Atmospheric Color Tone Harmonization (Change #3)
+ 7. AI Super-Resolution Upscaling (2x / 4x Text-Preserving) (Change #2)
+ 8. Catalog Duplicate Detection & Smart Merging (Change #6)
+ 9. Mobile Responsive UI & Progressive Web App (PWA) (Change #7)
+10. Studio Presets & Asset Library (Change #9)
+11. Recommended End-to-End Seller Workflow
+12. Quick Reference & Keyboard/Shortcut Cheat Sheet
+================================================================================
+
+
+1. GETTING STARTED & LAUNCHING THE APPLICATION
+--------------------------------------------------------------------------------
+To start the application:
+1. Double-click "start_app.bat" in the project root folder, OR run:
+      python server.py
+2. Open your web browser and navigate to:
+      http://localhost:8000
+3. The dashboard opens displaying the editorial lookbook interface, top search
+   bar, workflow navigation tabs, and catalog repository.
+
+
+================================================================================
+2. USER AUTHENTICATION & MULTI-TENANT WORKSPACES (Change #8)
+================================================================================
+The platform includes full user authentication and multi-tenant catalog
+isolation. Each registered seller or merchant account maintains their own
+private product catalog, isolated cutouts, custom scenes, and generation history.
+
+A. Logging In:
+   - When you open the website, an Authentication Modal appears if you are not
+     signed in.
+   - For rapid testing and multi-role demos, use the one-click demo user chips
+     displayed above the login form:
+       * "alex_studio"    (Fashion, Footwear, & Lifestyle lookbooks)
+       * "morgan_catalog" (Tech, Gadgets, & Consumer Electronics)
+       * "user1"          (Fashion & Apparel seller)
+       * "user2"          (Hardware & Electronics seller)
+     All pre-seeded demo accounts use password: password123
+   - Alternatively, type your username or email and password, then click "Sign In".
+
+B. Registering a New Account:
+   - Click the "Register" tab at the top of the auth modal.
+   - Enter your desired Username, Email address, and Password.
+   - Click "Create Account" to immediately enter your personalized catalog workspace.
+
+C. Switching Accounts & Logging Out:
+   - Your active username is shown in the top-right header badge.
+   - Click the logout icon next to your username to switch accounts at any time.
+
+
+================================================================================
+3. TEXT-TO-PRODUCT AI SCENE GENERATION (Change #5)
+================================================================================
+Sellers can now generate photorealistic, studio-quality commercial products
+from scratch using pure text descriptions—no physical photography required!
+
+A. How to Open the AI Generator:
+   - Click the "AI Studio" [AI] button located in the top-right header, OR
+   - Click the "Generate with AI" button on the Catalog Ingestion Card.
+
+B. Generating a Product:
+   1. In the "Product Description Prompt" box, describe your product in natural
+      language (e.g., "Minimalist matte black ceramic pour-over coffee dripper").
+   2. Select a Commercial Aesthetic Preset:
+      - "Clean Studio": White infinity studio standard (Amazon/Shopify hero).
+      - "Editorial Vogue": Dramatic, high-fashion luxury campaign lighting.
+      - "White Hero": High-key pristine white background.
+      - "Cyberpunk Neon": High-contrast noir with neon edge rim highlights.
+      - "Minimalist Oak": Soft organic daylight with warm Scandinavian wood.
+   3. (Optional) Provide a Custom Product Title or select a Target Category.
+      If left blank, the system automatically infers the product title and
+      classifies the category.
+   4. Click "Generate & Ingest Product".
+
+C. Automatic BiRefNet Pipeline:
+   - The engine automatically renders the commercial visual plate.
+   - It instantly routes the image through the BiRefNet neural matting pipeline
+     to extract a pixel-perfect transparent PNG cutout.
+   - The raw image, isolated cutout, SKU, tags, and category are saved directly
+     into your authenticated seller catalog.
+
+
+================================================================================
+4. AI COMMERCIAL PROMPT ENHANCER (Change #4)
+================================================================================
+Transform simple, 3-word product ideas into rich, commercial studio prompts
+incorporating pro lighting rigs, textures, focal lengths, and camera angles.
+
+A. How to Use the Prompt Enhancer:
+   1. Open the "AI Studio" modal (Header -> "AI Studio").
+   2. Type a brief idea into the prompt box (e.g., "leather loafers" or
+      "wireless sports earbuds").
+   3. Click the "Prompt Enhancer [AI]" button in the top-right corner of the prompt box.
+   4. The AI analyzes your text and automatically rewrites it with professional
+      specifications:
+      - High-end studio lighting (diffused softbox, key light, kicker rim lighting)
+      - Material surface details (full-grain leather grain, brushed aluminum, matte glass)
+      - Macro camera focal distance (50mm / 85mm prime lens, f/4 aperture)
+      - Sharp commercial composition
+   5. A green status notice will display the domain tag (e.g. "[COMMERCIAL] Prompt
+      enhanced with studio specifications").
+
+B. One-Click Undo:
+   - If you want to revert back to your original short description, simply click
+     the "Undo" link on the enhancement notification bar.
+
+C. Category Inspiration Chips:
+   - Need ideas? Click any of the 13 quick-start inspiration chips below the
+     prompt box (e.g., 👕 Crewneck T-Shirt, 💎 Diamond Ring, 🏀 Air Jordans,
+     🎧 Studio Headphones, ⌚ Swiss Chronograph, 🔪 Damascus Chef Knife).
+
+
+================================================================================
+5. ARTIFICIAL SHADOW GENERATION SUITE (Change #1)
+================================================================================
+The artificial shadow engine solves the artificial "floating/sticker" look of
+isolated cutouts by synthesizing physics-grounded ambient occlusion and
+directional drop shadows.
+
+A. Where to Find Shadow Controls:
+   1. From the Catalog or Cutouts view, click on any product to open the "Product Studio".
+   2. Switch to Tab 3: "Stylize & Presets".
+   3. Scroll to the "Artificial Shadow Studio" control card on the left panel.
+
+B. Key Shadow Controls & Sliders:
+   1. Contact Shadow Toggle:
+      - Simulates Ambient Occlusion (tight, dark contact patch directly under the
+        base of the product where it touches the surface).
+      - Anchors the product so it looks grounded and real.
+   2. Drop / Cast Shadow Toggle:
+      - Projects a directional cast shadow across the ground plane.
+   3. 360-Degree Light Direction Slider (-180° to +180°):
+      - Move the slider to change where light strikes the product.
+      - A live badge shows the directional heading:
+          * -180° = Left Light Source
+          * -90°  = Overhead Top Light
+          * -60°  = Classic Studio Top-Left Key Light (Recommended Default)
+          * 0°    = Right Light Source
+          * +90°  = Bottom Up-Lighting
+   4. Shadow Distance Offset Slider (0px to 70px):
+      - Controls the distance the cast shadow extends away from the product base.
+   5. Blur Softness Slider (2px to 40px):
+      - Controls Gaussian blur falloff (crisp vs. diffused lighting).
+   6. Shadow Density / Opacity Slider (10% to 100%):
+      - Tunes the opacity and subtlety of the shadow composite.
+
+C. Applying Shadows:
+   - Standalone: Click "Apply Shadow" at the top of the shadow card to preview
+     the shadow directly on the transparent cutout.
+   - In Scene Composite: Leave the toggles active and click "Render Plate" to
+     fuse the shadow seamlessly with marble, podium, wood, or custom scenes.
+
+
+================================================================================
+6. ATMOSPHERIC COLOR TONE HARMONIZATION (Change #3)
+================================================================================
+When compositing a product photographed under warm yellow light onto a cool,
+moody blue scene (or vice-versa), traditional cutouts look synthetic. The
+Atmospheric Color Match engine harmonizes the product's color temperature with
+the scene using statistical LAB color space transfer.
+
+A. Where to Find Color Tone Matching:
+   1. In the "Product Studio" modal, navigate to Tab 3: "Stylize & Presets".
+   2. Locate the "Atmospheric Color Match" card underneath the shadow controls.
+
+B. Adjusting Settings:
+   1. "Auto-Adjust" Toggle:
+      - Turn on to automatically compute the scene's ambient illumination and
+        re-grade the product foreground to match.
+   2. Atmosphere Blend Intensity Slider (10% to 100%):
+      - Default is 70%.
+      - Lower percentages (30%-50%) maintain strict brand/pantone fidelity while
+        introducing subtle atmospheric color grading.
+      - Higher percentages (70%-90%) blend the product deeply into high-contrast
+        lighting environments (e.g. golden hour, dramatic sunset, moody neon).
+   3. "Optical Edge Rim Bleed" Checkbox:
+      - Simulates light scattering and rim reflection along the product borders
+        where the background environment wraps around the subject.
+
+C. Testing Standalone:
+   - Click the "Match Tone" button to test color grading on the cutout before
+     full-scene synthesis.
+
+
+================================================================================
+7. AI SUPER-RESOLUTION UPSCALE (2x / 4x TEXT-PRESERVING) (Change #2)
+================================================================================
+Product packaging, wine labels, perfume ingredients, and electronics labels often
+get blurred or distorted by standard resizing. The text-preserving super-resolution
+pipeline enhances resolution up to 8K while keeping typography, barcodes, and
+fine edges tack-sharp.
+
+A. How to Access AI Upscaling:
+   - Method 1 (Export Tab):
+     1. In "Product Studio", click Tab 4: "Commercial Export".
+     2. Scroll to the "AI Upscaling Pass" section.
+   - Method 2 (Catalog & Cutout Cards):
+     1. Hover over any product card in the Catalog or Cutout grid.
+     2. Click the quick upscale action.
+
+B. Choosing the Scale Factor:
+   - "1x Native": Standard unscaled export.
+   - "2x Ultra-Sharp": Upscales up to ~4000x4000 px. Ideal for Amazon & Shopify
+     high-res hover zoom.
+   - "4x Master": Upscales up to ~8000x8000 px. Ultra-high fidelity for large
+     format print lookbooks, packaging proofs, and billboards.
+
+C. Text & Label Preservation Toggle:
+   - Check "Preserve Typography & Label Sharpness" (Enabled by default).
+   - This activates edge-directed contrast reinforcement on text characters and
+     line art while smoothing flat surfaces without digital noise.
+
+D. Running the Upscale:
+   - Click "Quick Upscale" to generate and download the high-res file immediately, OR
+   - Select your export preset (Amazon, Shopify, Reels, Web Banner) and click
+     "Render & Download Asset".
+
+
+================================================================================
+8. CATALOG DUPLICATE DETECTION & SMART MERGING (Change #6)
+================================================================================
+Keep your product catalog clean, organized, and free of accidental double-uploads
+or redundant image plates.
+
+A. Automated Duplicate Alert Banner:
+   - If identical or visually similar product photos are uploaded, an editorial
+     alert banner appears at the top of the "Catalog & Products" tab:
+     "Duplicate Items Detected [X DUPLICATES]".
+
+B. Reviewing & Setting Sensitivity:
+   1. Click "Review" on the alert banner to open the "Duplicate Catalog Manager".
+   2. Choose your detection sensitivity in the subheader toolbar:
+      - "Strict (95%+ / MD5)": Catches byte-for-byte exact matches and near-clones.
+      - "Standard (88%+)": Balanced perceptual hash detection (Recommended).
+      - "Broad (75%+)": Clusters different shots or angles of the same item.
+
+C. Smart Merging vs. Purging:
+   - "Smart Merge All":
+     * Analyzes redundant product records and safely consolidates all transparent
+       cutouts, 3D perspective angles, stylized scenes, and tags into the designated
+       Primary Keep record.
+     * Deletes redundant duplicate shell entries without losing any generated assets!
+   - "Purge Duplicates":
+     * Deletes duplicate product entries and their extra image files to instantly
+       reclaim disk storage (shown in "Storage Reclaimable: X MB").
+
+D. Upload Safeguard ("Auto-skip duplicates"):
+   - On the main Catalog drop zone, check the "Auto-skip duplicates" box.
+   - When dropping new batches of photos, the server performs a fast pre-flight
+     visual check and automatically ignores files already present in your catalog.
+
+
+================================================================================
+9. MOBILE RESPONSIVE UI & PROGRESSIVE WEB APP (PWA) (Change #7)
+================================================================================
+StudioAI is fully optimized for mobile devices, tablets, and smartphones, with
+complete Progressive Web App (PWA) offline and standalone support.
+
+A. Installing the App on Your Phone or Desktop:
+   - iOS (Safari): Tap the "Share" button -> select "Add to Home Screen".
+   - Android (Chrome): Tap the three-dot menu -> tap "Install App" or "Add to Home Screen".
+   - Desktop (Chrome/Edge): Click the install icon in the URL bar.
+   - The app launches in full-screen standalone mode with native app performance,
+     custom luxury icons, and local asset caching.
+
+B. Direct Smartphone Camera Shooting:
+   - On mobile browsers, tap the red "Camera" button in the upload toolbar.
+   - Your device's native camera immediately opens (`capture="environment"`).
+   - Snap a photo of a physical product on your workbench, desk, or retail shelf.
+   - The photo uploads instantly, removes the background via BiRefNet, and creates
+     a catalog entry on the spot.
+
+C. Touch-Friendly Controls:
+   - Modals automatically convert to swipeable bottom-sheet drawers on mobile screens.
+   - 360-degree rotation, sliders, and tab bars have enlarged touch targets designed
+     for thumb navigation.
+
+
+================================================================================
+10. STUDIO PRESETS & ASSET LIBRARY (Change #9)
+================================================================================
+A curated library of 56+ high-resolution reference product templates is included
+in `ai_studio_templates/` covering diverse e-commerce sectors:
+   * Footwear & Sneakers (e.g. running shoes, classic loafers, athletic boots)
+   * Consumer Electronics (e.g. studio headphones, DSLR cameras, gaming gear)
+   * Luxury Horology & Jewelry (e.g. chronograph watches, diamond rings)
+   * Cosmetics & Fragrances (e.g. amber perfume bottles, skincare dispensers)
+   * Apparel & Accessories (e.g. crewneck tees, leather weekender bags, eyewear)
+   * Hardware & Home Goods (e.g. cordless power drills, kitchen cutlery, seating)
+
+A. Applying 1-Click Studio Scene Backdrops (Tab 3: Stylize & Presets):
+   - "⚪ Studio Pure White": Standard clean e-commerce white infinity backdrop.
+   - "🏛️ Ceramic Pedestal": Sculptural gallery podium for luxury goods.
+   - "💎 Carrara Marble": Specular polished marble with soft surface reflections.
+   - "🪵 Nordic Timber": Warm horizontal oak planks with soft sunbeam diffusion.
+   - "🌿 Botanical Stone": Atmospheric slate ledge with organic botanical shadows.
+
+B. Custom Atmospheric Direction:
+   - Type custom keywords in the "Atmospheric Direction" input (e.g., "dark obsidian
+     pedestal, volumetric fog, moody amber rim light") to override the preset style.
+
+
+================================================================================
+11. RECOMMENDED END-TO-END SELLER WORKFLOW
+================================================================================
+Follow this 5-step workflow to generate commercial-ready catalog assets from zero:
+
+Step 1: Ingest Product
+   - Drag and drop your product photo onto the Ingestion Zone, OR
+   - Tap "Camera" on your smartphone to shoot it live, OR
+   - Tap "AI Studio" -> enhance your prompt -> click "Generate & Ingest Product".
+
+Step 2: Inspect Cutout (Tab 1: Matting)
+   - Open your product record.
+   - Review the BiRefNet transparent cutout plate.
+   - If needed, fine-tune the edge matting or re-process.
+
+Step 3: Generate 360° Perspectives (Tab 2: 3D Perspectives)
+   - Click "Synthesize 6 Perspectives".
+   - The engine generates front, side, three-quarter, and elevated perspectives.
+   - Export the 360° turntable GIF or download all angles as a ZIP.
+
+Step 4: Stylize, Shadows & Lighting (Tab 3: Stylize & Presets)
+   - Choose a scene preset (e.g. "Carrara Marble" or "Nordic Timber").
+   - Enable "Contact Shadow" and "Drop Shadow", setting light direction to -60°.
+   - Enable "Atmospheric Color Match" (70% blend) with Optical Edge Bleed.
+   - Click "Render Plate".
+
+Step 5: Commercial Export & Upscaling (Tab 4: Commercial Export)
+   - Pick your marketplace standard:
+       * "Amazon" (1:1, 2000px, JPG)
+       * "Shopify" (1:1, WebP Master)
+       * "Reels / Ad" (9:16 Vertical, 1080x1920, PNG)
+       * "Web Banner" (16:9 Landscape, 1920x1080, WebP)
+   - Select "2x Ultra-Sharp" or "4x Master" AI Upscaling.
+   - Ensure "Preserve Typography & Label Sharpness" is checked.
+   - Click "Render & Download Asset".
+
+
+================================================================================
+12. QUICK REFERENCE & KEYBOARD / SHORTCUT CHEAT SHEET
+================================================================================
+- Fast Catalog Ingest: Drag & drop files anywhere onto the main upload drop zone.
+- Visual Reverse Search: Click "Image Match" in the top search bar to find products
+  by dropping an image.
+- Global Search: Type product name, SKU, or tag into the top bar. Press Enter to filter.
+- Switch Views: Use top nav tabs (Catalog & Products, Cutouts & Matting,
+  Commercial Scenes, 3D Multi-Angle Studio).
+- Glitch Progress HUD: Appears top-center during generation with live % progress.
+  Click the 'X' button on the HUD to dismiss it early if desired.
+- Server Logs & REST API Docs: Visit http://localhost:8000/docs for Swagger API documentation.
+================================================================================
+                        END OF WEBSITE USER GUIDE
+================================================================================
