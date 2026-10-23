@@ -44,17 +44,22 @@ private product catalog, isolated cutouts, custom scenes, and generation history
 
 A. Logging In:
    - When you open the website, the Authentication Modal appears automatically.
-   - All accounts created in the database are displayed directly in the
-     "Created Accounts" list on the card:
+   - You can directly type your username or email into the "Username / Email" field
+     at the top of the form, type your password, and click "Sign In to Catalog".
+     You do not need to select from or browse other users.
+   - Quick-Select Created Accounts:
+     For convenience, all accounts registered in the database are listed under
+     "Or select a created account":
        * "alex"   (Alex Studio - Fashion, Beauty & Apparel)
        * "morgan" (Morgan Catalog - Tech, Tools & Electronics)
        * "vedant" (Vedant Surve - Studio Director & Admin)
        * Any newly registered or created merchant accounts
      Starter demo accounts use password: password123
-   - Simply click on your created account tile to select it (shows "✓ Selected").
-   - Click "Sign In to Catalog" to access your private catalog.
-   - To sign in with a custom username or email, click "Or sign in with custom
-     username / email".
+   - Clicking any account tile instantly populates its username (and demo password)
+     so you can sign in with one click.
+   - Privacy & Security:
+     Browser password manager popups and unwanted autofill suggestions (such as
+     saved browser credentials) are blocked to maintain a clean workspace.
 
 B. Registering a New Account:
    - Click the "Create Account" tab at the top of the modal.

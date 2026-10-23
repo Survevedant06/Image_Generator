@@ -160,6 +160,20 @@
       background: #FFFFFF;
       box-shadow: 0 0 0 3px rgba(10,10,10,0.06);
     }
+    /* Override browser autofill yellow background permanently */
+    .auth-input:-webkit-autofill,
+    .auth-input:-webkit-autofill:hover,
+    .auth-input:-webkit-autofill:focus,
+    .auth-input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 9999px #FAFAFA inset !important;
+      box-shadow: 0 0 0 9999px #FAFAFA inset !important;
+      -webkit-text-fill-color: #0A0A0A !important;
+      transition: background-color 99999s ease-in-out 0s !important;
+    }
+    .masked-password {
+      -webkit-text-security: disc !important;
+      text-security: disc !important;
+    }
 
     .auth-btn {
       width: 100%;
@@ -2728,10 +2742,6 @@
       if (badge) badge.classList.add('hidden');
       const errEl = document.getElementById('loginError');
       if (errEl) errEl.textContent = '';
-      const manualSec = document.getElementById('manualUsernameSection');
-      if (manualSec) manualSec.style.display = 'none';
-      const toggleIcon = document.getElementById('manualUserToggleIcon');
-      if (toggleIcon) toggleIcon.textContent = '▸';
       loadUserSuggestions();
     }
 
@@ -2789,8 +2799,7 @@
       clearAuthSession();
       resetCatalogState();
       showToast('You have been signed out.', 'info', 2000);
-      loadUserSuggestions();
-      showAuthOverlay();
+      selectedAccountUsername = '';
       const uInput = document.getElementById('loginUsername');
       if (uInput) uInput.value = '';
       const pInput = document.getElementById('loginPassword');
@@ -2798,6 +2807,8 @@
       const errEl = document.getElementById('loginError');
       if (errEl) errEl.textContent = '';
       closeUserSuggestions();
+      showAuthOverlay();
+      loadUserSuggestions();
     }
 
     function togglePasswordVisibility(inputId, btn) {
@@ -2851,13 +2862,13 @@
         countBadge.textContent = `${users.length} ${users.length === 1 ? 'Account' : 'Accounts'}`;
       }
 
-      const activePref = (selectedAccountUsername || localStorage.getItem('last_registered_username') || users[0].username).toLowerCase();
+      const activePref = (selectedAccountUsername || '').toLowerCase();
 
       container.innerHTML = users.map(u => {
         const initial = (u.username || 'U')[0].toUpperCase();
         const grad = getUserAvatarGradient(u.username);
         const isDemo = Boolean(u.is_demo);
-        const isSelected = (u.username.toLowerCase() === activePref);
+        const isSelected = Boolean(activePref && u.username.toLowerCase() === activePref);
         const countText = u.product_count !== undefined 
           ? `${u.product_count} ${u.product_count === 1 ? 'item' : 'items'}`
           : (isDemo ? 'Demo Catalog' : 'Seller');
@@ -2890,9 +2901,7 @@
       const errEl = document.getElementById('loginError');
       const demoHint = document.getElementById('demoPasswordHint');
 
-      if (uInput) {
-        uInput.value = username;
-      }
+      if (uInput) uInput.value = username;
       if (pInput) {
         if (isDemo) {
           pInput.value = 'password123';
@@ -2913,25 +2922,17 @@
     }
 
     function toggleManualUsernameInput() {
-      const sec = document.getElementById('manualUsernameSection');
-      const icon = document.getElementById('manualUserToggleIcon');
-      if (!sec) return;
-      const isHidden = (sec.style.display === 'none' || !sec.style.display);
-      sec.style.display = isHidden ? 'block' : 'none';
-      if (icon) icon.textContent = isHidden ? '▾' : '▸';
-      if (isHidden) {
-        const uInput = document.getElementById('loginUsername');
-        if (uInput) {
-          uInput.removeAttribute('readonly');
-          uInput.focus();
-        }
-      }
+      // Username field is now always visible — just focus it
+      const uInput = document.getElementById('loginUsername');
+      if (uInput) { uInput.removeAttribute('readonly'); uInput.focus(); }
     }
 
     function handleManualUsernameInput(val) {
-      selectedAccountUsername = (val || '').trim();
+      const trimmed = (val || '').trim();
+      selectedAccountUsername = trimmed;
       const errEl = document.getElementById('loginError');
       if (errEl) errEl.textContent = '';
+      // Re-render user list so highlighting updates as user types
       renderCreatedUsersList(cachedSuggestedUsers);
     }
 
@@ -2946,36 +2947,17 @@
         console.warn('Could not load user suggestions:', err);
       }
 
-      // Check preferred or recently registered username
-      const lastRegistered = localStorage.getItem('last_registered_username');
-      let targetUser = null;
-      if (preferredUsername) {
-        targetUser = cachedSuggestedUsers.find(u => u.username.toLowerCase() === preferredUsername.toLowerCase());
-      }
-      if (!targetUser && lastRegistered) {
-        targetUser = cachedSuggestedUsers.find(u => u.username.toLowerCase() === lastRegistered.toLowerCase());
-      }
-      if (!targetUser && cachedSuggestedUsers.length > 0) {
-        targetUser = cachedSuggestedUsers[0];
-      }
-
-      if (targetUser) {
-        selectedAccountUsername = targetUser.username;
-        const uInput = document.getElementById('loginUsername');
-        const pInput = document.getElementById('loginPassword');
-        const demoHint = document.getElementById('demoPasswordHint');
-        if (uInput) uInput.value = targetUser.username;
-        if (pInput) {
-          if (targetUser.is_demo) {
-            pInput.value = 'password123';
-            if (demoHint) demoHint.style.display = 'inline-block';
-          } else {
-            pInput.value = '';
-            if (demoHint) demoHint.style.display = 'none';
-          }
+      // If preferredUsername is explicitly passed (e.g. right after registration), select it
+      if (preferredUsername && cachedSuggestedUsers.length > 0) {
+        const targetUser = cachedSuggestedUsers.find(u => u.username.toLowerCase() === preferredUsername.toLowerCase());
+        if (targetUser) {
+          selectCreatedAccount(targetUser.username, targetUser.is_demo);
+          return;
         }
       }
 
+      // Default: clean state without auto-filling someone else's username
+      selectedAccountUsername = '';
       renderCreatedUsersList(cachedSuggestedUsers);
     }
 
@@ -3025,7 +3007,8 @@
 
       if (!username) {
         if (errEl) errEl.textContent = 'Please enter your username or email.';
-        usernameInput?.focus();
+        const uInput = document.getElementById('loginUsername');
+        if (uInput) { uInput.removeAttribute('readonly'); uInput.focus(); }
         return;
       }
       if (!password) {
@@ -6702,59 +6685,65 @@
       <div class="auth-card-body">
 
         <!-- Login Form -->
-        <form id="loginForm" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onsubmit="handleLogin(event)">
-          <!-- Anti-autofill decoy inputs to permanently block browser credential manager popups -->
-          <div style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;height:0;width:0;overflow:hidden" aria-hidden="true">
-            <input type="text" name="anti_autofill_user" tabindex="-1" autocomplete="off" />
-            <input type="password" name="anti_autofill_pwd" tabindex="-1" autocomplete="off" />
-          </div>
-
-          <!-- Section: Created User Accounts (Directly Visible) -->
+        <!-- loginForm: autocomplete=off + role=presentation prevents ALL browser autofill -->
+        <form id="loginForm" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" role="presentation" onsubmit="handleLogin(event)">
+          <!-- Username / Email Field: directly visible at top, clean input -->
           <div style="margin-bottom:14px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span>Created Accounts</span>
-              </label>
-              <span id="createdUserCountBadge" style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:#71717A;background:#FAFAFA;border:1px solid #E4E4E7;padding:1px 6px;border-radius:4px">Loading...</span>
-            </div>
-
-            <!-- Visible scrollable list of created users -->
-            <div id="createdUsersContainer" style="display:flex;flex-direction:column;gap:6px;max-height:190px;overflow-y:auto;border:1px solid #E4E4E7;border-radius:10px;padding:6px;background:#FAFAFA">
-              <div style="padding:14px;color:#71717A;font-size:11px;text-align:center">Loading created accounts...</div>
-            </div>
+            <label for="loginUsername" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px">Username / Email</label>
+            <input id="loginUsername"
+                   type="text"
+                   name="app_auth_user"
+                   class="auth-input"
+                   placeholder="Enter your username or email"
+                   autocomplete="off"
+                   data-lpignore="true"
+                   data-form-type="other"
+                   data-1p-ignore="true"
+                   spellcheck="false"
+                   oninput="handleManualUsernameInput(this.value)">
           </div>
 
-          <!-- Optional Manual Username / Email Accordion -->
-          <div style="margin-bottom:14px">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <button type="button" id="toggleManualUserBtn" onclick="toggleManualUsernameInput()" style="background:none;border:none;color:#71717A;font-size:11px;font-weight:500;cursor:pointer;padding:2px 0;display:flex;align-items:center;gap:4px;transition:color 0.15s">
-                <span id="manualUserToggleIcon">▸</span>
-                <span>Or sign in with custom username / email</span>
-              </button>
-            </div>
-            <div id="manualUsernameSection" style="display:none;margin-top:8px">
-              <input id="loginUsername" type="text" name="app_account_id" class="auth-input" placeholder="Type username or email" autocomplete="new-password" data-lpignore="true" data-form-type="other" spellcheck="false" readonly onfocus="this.removeAttribute('readonly')" onclick="this.removeAttribute('readonly')" oninput="handleManualUsernameInput(this.value)">
-            </div>
-          </div>
-
-          <!-- Password Field -->
-          <div style="margin-bottom:20px">
+          <!-- Password Field: uses masked-password class to prevent Chrome password manager popup -->
+          <div style="margin-bottom:18px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
               <label for="loginPassword" style="display:block;font-size:11px;font-weight:600;color:#3F3F46;letter-spacing:0.05em;text-transform:uppercase">Password</label>
-              <span id="demoPasswordHint" style="font-size:10px;color:#71717A">Demo: <code style="color:#0A0A0A;background:#FAFAFA;padding:1px 6px;border-radius:4px;border:1px solid #E4E4E7;font-family:'JetBrains Mono',monospace;font-size:10px">password123</code></span>
+              <span id="demoPasswordHint" style="font-size:10px;color:#71717A;display:none">Demo: <code style="color:#0A0A0A;background:#FAFAFA;padding:1px 6px;border-radius:4px;border:1px solid #E4E4E7;font-family:'JetBrains Mono',monospace;font-size:10px">password123</code></span>
             </div>
             <div style="position:relative">
-              <input id="loginPassword" type="password" name="app_secret_key" class="auth-input" placeholder="Enter password" required autocomplete="new-password" data-lpignore="true" data-form-type="other" oninput="if(document.getElementById('loginError')) document.getElementById('loginError').textContent='';" style="padding-right:38px">
+              <input id="loginPassword" type="text" name="app_auth_key" class="auth-input masked-password"
+                     placeholder="Enter your password"
+                     autocomplete="off"
+                     data-lpignore="true" data-form-type="other" data-1p-ignore="true"
+                     spellcheck="false"
+                     oninput="if(document.getElementById('loginError')) document.getElementById('loginError').textContent='';"
+                     style="padding-right:38px">
               <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
           </div>
+
           <p id="loginError" class="auth-error"></p>
-          <button type="submit" id="loginBtn" class="auth-btn" style="margin-top:8px">
+
+          <button type="submit" id="loginBtn" class="auth-btn" style="margin-top:4px">
             Sign In to Catalog
           </button>
+
+          <!-- Divider & Section: Created User Accounts (Quick Select) -->
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid #E4E4E7">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#71717A;letter-spacing:0.05em;text-transform:uppercase">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Or select a created account</span>
+              </label>
+              <span id="createdUserCountBadge" style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:#71717A;background:#FAFAFA;border:1px solid #E4E4E7;padding:1px 6px;border-radius:4px">Loading...</span>
+            </div>
+
+            <!-- Visible scrollable list of created users -->
+            <div id="createdUsersContainer" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;border:1px solid #E4E4E7;border-radius:10px;padding:6px;background:#FAFAFA">
+              <div style="padding:14px;color:#71717A;font-size:11px;text-align:center">Loading created accounts...</div>
+            </div>
+          </div>
         </form>
 
       <!-- Register Form -->
